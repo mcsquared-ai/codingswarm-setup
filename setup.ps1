@@ -1,16 +1,16 @@
 # ============================================================================
-# mcsquared.ai — Developer Workstation Setup + Stockyard Coding Swarm
+# mcsquared.ai — Developer Workstation Setup + CodingMachines Agent Swarm
 # Windows PowerShell version
 #
-# Run: irm https://raw.githubusercontent.com/mcsquared-ai/mc2-IgAN-LaunchToolkit/main/scripts/stockyard-dev-setup.ps1 | iex
-# Or:  .\scripts\stockyard-dev-setup.ps1
+# Run: irm https://raw.githubusercontent.com/mcsquared-ai/dev-setup/main/setup.ps1 | iex
+# Or:  .\setup.ps1
 # ============================================================================
 
 $ErrorActionPreference = "Stop"
 
-$STOCKYARD_HOST = "34.121.124.99"
-$STOCKYARD_PORT = "65433"
-$STOCKYARD_URL = "grpc://${STOCKYARD_HOST}:${STOCKYARD_PORT}"
+$CM_HOST = "codingmachines.mcsquared.cloud"
+$CM_PORT = "65433"
+$CM_URL = "grpc://${CM_HOST}:${CM_PORT}"
 $GCP_PROJECT = "sales-demos-485118"
 $STOCKYARD_REPO = "https://github.com/prime-radiant-inc/stockyard.git"
 
@@ -29,7 +29,7 @@ try {
 } catch {}
 
 if (-not $wslInstalled) {
-    Warn "WSL2 not found. Stockyard CLI runs best under WSL2."
+    Warn "WSL2 not found. CodingMachines CLI runs best under WSL2."
     Info "Installing WSL2..."
     wsl --install --no-distribution
     Write-Host ""
@@ -37,7 +37,7 @@ if (-not $wslInstalled) {
     Write-Host "  1. Open PowerShell and run: wsl --install -d Ubuntu-24.04"
     Write-Host "  2. Open Ubuntu from Start Menu"
     Write-Host "  3. Run this inside Ubuntu:"
-    Write-Host "     curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/mc2-IgAN-LaunchToolkit/main/scripts/stockyard-dev-setup.sh | bash"
+    Write-Host "     curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/dev-setup/main/setup.sh | bash"
     exit 0
 }
 
@@ -65,11 +65,11 @@ foreach ($tool in $tools) {
     }
 }
 
-# ── Build Stockyard CLI ──────────────────────────────────────────────
+# ── Build CodingMachines CLI ─────────────────────────────────────────
 
-Info "Building Stockyard CLI..."
+Info "Building CodingMachines CLI..."
 
-$tmpDir = Join-Path $env:TEMP "stockyard-build"
+$tmpDir = Join-Path $env:TEMP "codingmachines-build"
 if (Test-Path $tmpDir) { Remove-Item -Recurse -Force $tmpDir }
 New-Item -ItemType Directory -Path $tmpDir | Out-Null
 
@@ -83,36 +83,45 @@ go build -o stockyard.exe ./cmd/stockyard
 
 $binDir = Join-Path $env:USERPROFILE ".local\bin"
 New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-Copy-Item stockyard.exe $binDir
+Copy-Item stockyard.exe "$binDir\stockyard.exe"
+
+# Create branded wrapper batch file
+@"
+@echo off
+REM CodingMachines — mcsquared.ai coding agent orchestrator
+REM Wraps Stockyard (https://github.com/prime-radiant-inc/stockyard)
+"%~dp0stockyard.exe" %*
+"@ | Set-Content "$binDir\codingmachines.bat" -Encoding ASCII
 
 Pop-Location
 Pop-Location
 Remove-Item -Recurse -Force $tmpDir
 
-Log "Stockyard CLI: $binDir\stockyard.exe"
+Log "CodingMachines CLI: $binDir\codingmachines.bat"
 
 # ── Configure environment ────────────────────────────────────────────
 
 Info "Configuring environment..."
 
-[Environment]::SetEnvironmentVariable("STOCKYARD_URL", $STOCKYARD_URL, "User")
+[Environment]::SetEnvironmentVariable("STOCKYARD_URL", $CM_URL, "User")
+[Environment]::SetEnvironmentVariable("CODINGMACHINES_HOST", $CM_HOST, "User")
 $currentPath = [Environment]::GetEnvironmentVariable("PATH", "User")
 if ($currentPath -notlike "*\.local\bin*") {
     [Environment]::SetEnvironmentVariable("PATH", "$currentPath;$binDir", "User")
 }
 
-$env:STOCKYARD_URL = $STOCKYARD_URL
+$env:STOCKYARD_URL = $CM_URL
 $env:PATH = "$env:PATH;$binDir"
 
-Log "STOCKYARD_URL=$STOCKYARD_URL"
+Log "STOCKYARD_URL=$CM_URL"
 
 # ── Verify ───────────────────────────────────────────────────────────
 
-Info "Testing connection..."
+Info "Testing connection to $CM_HOST..."
 try {
     $result = & "$binDir\stockyard.exe" list 2>&1
     if ($result -match "No tasks found" -or $result -match "ID") {
-        Log "Stockyard daemon: connected"
+        Log "CodingMachines daemon: connected"
     } else {
         Warn "Cannot reach daemon. Host VM may be stopped."
         Write-Host "  Run: gcloud compute instances start stockyard-host --zone=us-central1-a"
@@ -124,17 +133,17 @@ try {
 # ── Summary ──────────────────────────────────────────────────────────
 
 Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  mcsquared.ai Developer Setup Complete" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "================================================" -ForegroundColor Cyan
+Write-Host "  mcsquared.ai CodingMachines Setup Complete" -ForegroundColor Cyan
+Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  Stockyard CLI:  $binDir\stockyard.exe"
-Write-Host "  Host VM:        $STOCKYARD_HOST"
-Write-Host "  Config:         STOCKYARD_URL env var"
+Write-Host "  CLI:    $binDir\codingmachines.bat"
+Write-Host "  Host:   $CM_HOST"
+Write-Host "  Config: STOCKYARD_URL env var"
 Write-Host ""
 Write-Host "  Quick Start:" -ForegroundColor Green
-Write-Host "    stockyard list              # List running micro-VMs"
-Write-Host "    stockyard run --name test   # Spawn a micro-VM"
+Write-Host "    codingmachines list              # List running micro-VMs"
+Write-Host "    codingmachines run --name test   # Spawn a micro-VM"
 Write-Host ""
 Write-Host "  Note: Open a NEW terminal for PATH changes" -ForegroundColor Yellow
 Write-Host ""

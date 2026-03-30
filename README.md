@@ -1,6 +1,6 @@
 # mcsquared.ai Developer Setup
 
-One-command setup for developer workstations + Stockyard coding agent swarm.
+One-command setup for developer workstations + CodingMachines coding agent swarm.
 
 ## Quick Start
 
@@ -18,49 +18,50 @@ irm https://raw.githubusercontent.com/mcsquared-ai/dev-setup/main/setup.ps1 | ie
 
 1. **Detects your platform** (macOS arm64/amd64, Linux x86_64, Windows WSL2)
 2. **Installs dev tools**: git, go, gcloud, gh, python, uv, node
-3. **Builds Stockyard CLI** for your OS/architecture
-4. **Configures connection** to the shared GCP coding farm
+3. **Builds CodingMachines CLI** for your OS/architecture
+4. **Configures connection** to `codingmachines.mcsquared.cloud`
 5. **Creates helper commands**:
-   - `stockyard-start` — boot the host VM
-   - `stockyard-stop` — stop to save money
-   - `stockyard-status` — check host + daemon
-   - `stockyard-swarm` — launch parallel coding agents
+   - `codingmachines` — CLI (list, run, stop VMs)
+   - `codingmachines-start` — boot the host VM
+   - `codingmachines-stop` — stop to save money
+   - `codingmachines-status` — check host + daemon
+   - `codingmachines-ssh` — SSH into a micro-VM
+   - `codingmachines-swarm` — launch parallel coding agents
 
 ## Usage
 
 ```bash
 # Check host VM status
-stockyard-status
+codingmachines-status
 
 # Start host VM if stopped (~30s boot)
-stockyard-start
+codingmachines-start
 
 # Spawn a micro-VM
-stockyard run --name "my-task" --no-tailscale
+codingmachines run --name "my-task" --no-tailscale
 
 # SSH into a running VM (see SSH_ACCESS.md for full setup)
-ssh -J stockyard-host mooby@10.0.100.2
+codingmachines-ssh 10.0.100.2
 
 # Run a command inside a VM via SSH
-gcloud compute ssh stockyard-host --zone=us-central1-a --tunnel-through-iap \
-  --command="ssh mooby@10.0.100.2 'claude-code -p \"implement feature X\"'"
+codingmachines-ssh 10.0.100.2  # then run commands interactively
 
 # Launch a coding swarm (parallel agents)
-stockyard-swarm task1.md task2.md task3.md
+codingmachines-swarm task1.md task2.md task3.md
 
 # Stop when done
-stockyard stop <task-id>
+codingmachines stop <task-id>
 
 # List all tasks
-stockyard list
+codingmachines list
 ```
 
 ## Architecture
 
 ```
 Your Laptop (Mac/Win/Linux)
-  └── stockyard CLI (17MB)
-       └── gRPC → 34.121.124.99:65433
+  └── codingmachines CLI (wraps Stockyard)
+       └── gRPC → codingmachines.mcsquared.cloud:65433
             └── GCP Spot VM ($0.05/hr, auto-stops after 30min idle)
                  └── Firecracker micro-VMs (6s boot, ZFS CoW clones)
                       ├── Agent 1: working on project A
@@ -93,4 +94,12 @@ See [ADMIN_GUIDE.md](ADMIN_GUIDE.md) for:
 - Network bridge + NAT for VM internet
 - Systemd services (auto-start on boot)
 - Secrets management
+- DNS setup (codingmachines.mcsquared.cloud)
 - GCP org policy requirements
+
+## Naming
+
+**CodingMachines** is the mcsquared.ai branded name for the coding agent
+swarm infrastructure. Under the hood it wraps
+[Stockyard](https://github.com/prime-radiant-inc/stockyard), a Firecracker
+micro-VM orchestrator by Prime Radiant Inc (used under its published terms).

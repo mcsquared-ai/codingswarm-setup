@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ============================================================================
-# mcsquared.ai — Developer Workstation Setup + Stockyard Coding Swarm
+# mcsquared.ai — Developer Workstation Setup + CodingMachines Agent Swarm
 #
-# Run: curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/mc2-IgAN-LaunchToolkit/main/scripts/stockyard-dev-setup.sh | bash
-# Or:  bash scripts/stockyard-dev-setup.sh
+# Run: curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/dev-setup/main/setup.sh | bash
+# Or:  bash setup.sh
 #
 # Supports: macOS (arm64/amd64), Linux (x86_64), Windows (WSL2)
 # ============================================================================
@@ -11,11 +11,12 @@
 set -e
 
 # Config
-STOCKYARD_HOST="34.121.124.99"
-STOCKYARD_PORT="65433"
-STOCKYARD_URL="grpc://${STOCKYARD_HOST}:${STOCKYARD_PORT}"
+CM_HOST="codingmachines.mcsquared.cloud"
+CM_PORT="65433"
+CM_URL="grpc://${CM_HOST}:${CM_PORT}"
 GCP_PROJECT="sales-demos-485118"
 GCP_ZONE="us-central1-a"
+GCP_VM_NAME="stockyard-host"
 STOCKYARD_REPO="https://github.com/prime-radiant-inc/stockyard.git"
 
 # Colors
@@ -181,10 +182,10 @@ install_prerequisites() {
     fi
 }
 
-# ── Build Stockyard CLI ──────────────────────────────────────────────
+# ── Build CodingMachines CLI (wraps Stockyard) ────────────────────────
 
-build_stockyard_cli() {
-    info "Building Stockyard CLI for $PLATFORM/$GOARCH..."
+build_cli() {
+    info "Building CodingMachines CLI for $PLATFORM/$GOARCH..."
 
     TMPDIR=$(mktemp -d)
     cd "$TMPDIR"
@@ -195,15 +196,26 @@ build_stockyard_cli() {
     GOOS=$PLATFORM GOARCH=$GOARCH go build -o stockyard-cli ./cmd/stockyard
 
     mkdir -p "$HOME/.local/bin"
+
+    # Install the underlying binary
     cp stockyard-cli "$HOME/.local/bin/stockyard"
     chmod +x "$HOME/.local/bin/stockyard"
+
+    # Create the branded wrapper
+    cat > "$HOME/.local/bin/codingmachines" << 'WRAPPER'
+#!/bin/bash
+# CodingMachines — mcsquared.ai coding agent orchestrator
+# Wraps Stockyard (https://github.com/prime-radiant-inc/stockyard)
+exec stockyard "$@"
+WRAPPER
+    chmod +x "$HOME/.local/bin/codingmachines"
 
     # Clean up
     cd /
     rm -rf "$TMPDIR"
 
-    log "Stockyard CLI installed: $HOME/.local/bin/stockyard"
-    "$HOME/.local/bin/stockyard" version
+    log "CodingMachines CLI installed: $HOME/.local/bin/codingmachines"
+    "$HOME/.local/bin/codingmachines" version
 }
 
 # ── Configure environment ────────────────────────────────────────────
@@ -211,29 +223,41 @@ build_stockyard_cli() {
 configure_environment() {
     info "Configuring environment..."
 
-    # Stockyard config
-    mkdir -p "$HOME/.stockyard"
-    cat > "$HOME/.stockyard/env.sh" << EOF
-# mcsquared.ai Stockyard Coding Swarm
-export STOCKYARD_URL=${STOCKYARD_URL}
+    # CodingMachines config
+    mkdir -p "$HOME/.codingmachines"
+    cat > "$HOME/.codingmachines/env.sh" << EOF
+# mcsquared.ai CodingMachines — Coding Agent Swarm
+export STOCKYARD_URL=${CM_URL}
+export CODINGMACHINES_HOST=${CM_HOST}
 export PATH=\$PATH:\$HOME/.local/bin
 EOF
 
+    # Migrate from old stockyard config if present
+    if [ -f "$HOME/.stockyard/env.sh" ]; then
+        warn "Found old ~/.stockyard/env.sh — migrating to ~/.codingmachines/env.sh"
+    fi
+
     # Add to shell profile if not already there
-    if ! grep -q "stockyard/env.sh" "$SHELL_RC" 2>/dev/null; then
+    if ! grep -q "codingmachines/env.sh" "$SHELL_RC" 2>/dev/null; then
+        # Remove old stockyard source line if present
+        if grep -q "stockyard/env.sh" "$SHELL_RC" 2>/dev/null; then
+            sed -i.bak '/stockyard\/env.sh/d' "$SHELL_RC"
+            sed -i.bak '/mcsquared.ai Stockyard/d' "$SHELL_RC"
+            warn "Removed old Stockyard config from $SHELL_RC"
+        fi
         echo '' >> "$SHELL_RC"
-        echo '# mcsquared.ai Stockyard' >> "$SHELL_RC"
-        echo 'source ~/.stockyard/env.sh' >> "$SHELL_RC"
+        echo '# mcsquared.ai CodingMachines' >> "$SHELL_RC"
+        echo 'source ~/.codingmachines/env.sh' >> "$SHELL_RC"
         log "Added to $SHELL_RC"
     else
         warn "Already in $SHELL_RC"
     fi
 
     # Source for current session
-    export STOCKYARD_URL="${STOCKYARD_URL}"
+    export STOCKYARD_URL="${CM_URL}"
     export PATH="$PATH:$HOME/.local/bin"
 
-    log "STOCKYARD_URL=$STOCKYARD_URL"
+    log "STOCKYARD_URL=$CM_URL"
 }
 
 # ── Authenticate ─────────────────────────────────────────────────────
@@ -258,19 +282,18 @@ authenticate() {
     fi
 }
 
-# ── Verify Stockyard connection ──────────────────────────────────────
+# ── Verify connection ───────────────────────────────────────────────
 
 verify_connection() {
-    info "Testing Stockyard connection to $STOCKYARD_HOST..."
+    info "Testing CodingMachines connection to $CM_HOST..."
 
-    if "$HOME/.local/bin/stockyard" list &>/dev/null; then
-        log "Stockyard daemon: connected"
+    if "$HOME/.local/bin/codingmachines" list &>/dev/null; then
+        log "CodingMachines daemon: connected"
     else
-        warn "Cannot reach Stockyard daemon at $STOCKYARD_URL"
+        warn "Cannot reach daemon at $CM_URL"
         warn "The host VM may be stopped. To start it:"
         echo ""
-        echo "  gcloud compute instances start stockyard-host --zone=$GCP_ZONE --project=$GCP_PROJECT"
-        echo "  # Wait 30 seconds, then retry: stockyard list"
+        echo "  codingmachines-start"
         echo ""
     fi
 }
@@ -280,75 +303,164 @@ verify_connection() {
 create_helper_scripts() {
     info "Creating helper scripts..."
 
-    # stockyard-start: Start the host VM
-    cat > "$HOME/.local/bin/stockyard-start" << 'EOF'
+    # codingmachines-start: Start the host VM
+    cat > "$HOME/.local/bin/codingmachines-start" << 'EOF'
 #!/bin/bash
-echo "Starting Stockyard host VM..."
-gcloud compute instances start stockyard-host --zone=us-central1-a --project=sales-demos-485118
+GCP_PROJECT="sales-demos-485118"
+GCP_ZONE="us-central1-a"
+GCP_VM="stockyard-host"
+echo "Starting CodingMachines host VM..."
+gcloud compute instances start "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT"
 echo "Waiting for boot..."
 sleep 25
 echo "Checking connection..."
-stockyard list && echo "Ready!" || echo "Daemon may need manual restart — see docs"
+codingmachines list && echo "Ready!" || echo "Daemon may still be starting — retry in 10s"
 EOF
-    chmod +x "$HOME/.local/bin/stockyard-start"
+    chmod +x "$HOME/.local/bin/codingmachines-start"
 
-    # stockyard-stop: Stop the host VM
-    cat > "$HOME/.local/bin/stockyard-stop" << 'EOF'
+    # codingmachines-stop: Stop the host VM
+    cat > "$HOME/.local/bin/codingmachines-stop" << 'EOF'
 #!/bin/bash
-echo "Stopping Stockyard host VM..."
-gcloud compute instances stop stockyard-host --zone=us-central1-a --project=sales-demos-485118
+GCP_PROJECT="sales-demos-485118"
+GCP_ZONE="us-central1-a"
+GCP_VM="stockyard-host"
+echo "Stopping CodingMachines host VM..."
+gcloud compute instances stop "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT"
 echo "Stopped. No compute charges while stopped."
 EOF
-    chmod +x "$HOME/.local/bin/stockyard-stop"
+    chmod +x "$HOME/.local/bin/codingmachines-stop"
 
-    # stockyard-status: Check host VM status
-    cat > "$HOME/.local/bin/stockyard-status" << 'EOF'
+    # codingmachines-status: Check host VM status
+    cat > "$HOME/.local/bin/codingmachines-status" << 'EOF'
 #!/bin/bash
-STATUS=$(gcloud compute instances describe stockyard-host --zone=us-central1-a --project=sales-demos-485118 --format='value(status)' 2>/dev/null)
+GCP_PROJECT="sales-demos-485118"
+GCP_ZONE="us-central1-a"
+GCP_VM="stockyard-host"
+STATUS=$(gcloud compute instances describe "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --format='value(status)' 2>/dev/null)
 echo "Host VM: $STATUS"
 if [ "$STATUS" = "RUNNING" ]; then
-    stockyard list 2>/dev/null || echo "Daemon not responding"
+    codingmachines list 2>/dev/null || echo "Daemon not responding"
 fi
 EOF
-    chmod +x "$HOME/.local/bin/stockyard-status"
+    chmod +x "$HOME/.local/bin/codingmachines-status"
 
-    # stockyard-swarm: Run multiple agents
-    cat > "$HOME/.local/bin/stockyard-swarm" << 'SWARMEOF'
+    # codingmachines-ssh: SSH into a micro-VM
+    cat > "$HOME/.local/bin/codingmachines-ssh" << 'EOF'
 #!/bin/bash
-# Usage: stockyard-swarm task1.md task2.md task3.md
-# Each .md file contains a prompt for one agent
+# Usage: codingmachines-ssh <vm-ip>
+# Example: codingmachines-ssh 10.0.100.2
+GCP_PROJECT="sales-demos-485118"
+GCP_ZONE="us-central1-a"
+GCP_VM="stockyard-host"
+VM_IP="${1:?Usage: codingmachines-ssh <vm-ip>}"
+
+if [ -f "$HOME/.ssh/codingmachines_vm_key" ]; then
+    # Use ProxyJump if SSH config is set up
+    ssh -J stockyard-host "mooby@$VM_IP" 2>/dev/null || \
+    gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --tunnel-through-iap \
+        -- -t ssh -i "$HOME/.ssh/codingmachines_vm_key" "mooby@$VM_IP"
+else
+    gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --tunnel-through-iap \
+        -- -t ssh -o StrictHostKeyChecking=no "mooby@$VM_IP"
+fi
+EOF
+    chmod +x "$HOME/.local/bin/codingmachines-ssh"
+
+    # codingmachines-swarm: Run multiple agents via SSH
+    cat > "$HOME/.local/bin/codingmachines-swarm" << 'SWARMEOF'
+#!/bin/bash
+# Usage: codingmachines-swarm <prompt1.md> [prompt2.md] [prompt3.md] ...
+# Each .md file contains a Claude Code prompt for one micro-VM agent.
+set -e
+
+GCP_PROJECT="sales-demos-485118"
+GCP_ZONE="us-central1-a"
+GCP_VM="stockyard-host"
+
 if [ $# -eq 0 ]; then
-    echo "Usage: stockyard-swarm <prompt1.md> [prompt2.md] [prompt3.md] ..."
+    echo "Usage: codingmachines-swarm <prompt1.md> [prompt2.md] ..."
     echo "Each file contains a Claude Code prompt for one micro-VM agent."
     exit 1
 fi
 
-PIDS=()
-for PROMPT_FILE in "$@"; do
-    NAME=$(basename "$PROMPT_FILE" .md)
-    PROMPT=$(cat "$PROMPT_FILE")
-    echo "Spawning agent: $NAME"
-    TASK_ID=$(stockyard run --name "$NAME" --no-tailscale 2>&1 | grep "Task created:" | awk '{print $3}')
+# Collect prompt files and names
+PROMPTS=("$@")
+TASK_IDS=()
+TASK_NAMES=()
+
+echo "Launching ${#PROMPTS[@]} coding agents..."
+echo ""
+
+# Phase 1: Create all VMs
+for PROMPT_FILE in "${PROMPTS[@]}"; do
+    NAME=$(basename "$PROMPT_FILE" .md | tr '[:upper:]' '[:lower:]' | tr '_' '-')
+    TASK_NAMES+=("$NAME")
+    echo -n "  Creating VM: $NAME ... "
+    TASK_ID=$(codingmachines run --name "$NAME" --no-tailscale 2>&1 | grep "Task created:" | awk '{print $3}')
     if [ -n "$TASK_ID" ]; then
-        echo "  Task $TASK_ID created for $NAME"
-        stockyard exec "$TASK_ID" --no-stop-on-failure -- claude-code -p "$PROMPT" &
-        PIDS+=($!)
+        TASK_IDS+=("$TASK_ID")
+        echo "$TASK_ID"
     else
-        echo "  Failed to create task for $NAME"
+        echo "FAILED"
+        TASK_IDS+=("")
     fi
 done
 
 echo ""
-echo "Swarm launched: ${#PIDS[@]} agents"
-echo "Monitor: stockyard list"
+echo "Waiting for VMs to boot and get IPs..."
+sleep 10
+
+# Phase 2: Deliver prompts via SSH through the host
+echo ""
+echo "Delivering prompts via SSH..."
+
+# Get DHCP leases to map IPs
+LEASES=$(gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --tunnel-through-iap \
+    --command="cat /var/lib/stockyard/data/dnsmasq.leases 2>/dev/null" 2>/dev/null)
+
+for i in "${!PROMPTS[@]}"; do
+    PROMPT_FILE="${PROMPTS[$i]}"
+    TASK_ID="${TASK_IDS[$i]}"
+    NAME="${TASK_NAMES[$i]}"
+
+    [ -z "$TASK_ID" ] && continue
+
+    # Find VM IP from DHCP leases (hostname = stockyard-<task-id>)
+    VM_IP=$(echo "$LEASES" | grep "$TASK_ID" | awk '{print $3}')
+    if [ -z "$VM_IP" ]; then
+        echo "  $NAME ($TASK_ID): no IP found, skipping"
+        continue
+    fi
+
+    echo "  $NAME ($TASK_ID) @ $VM_IP: delivering prompt..."
+
+    # Read prompt content
+    PROMPT_CONTENT=$(cat "$PROMPT_FILE")
+
+    # Deliver via SSH through IAP tunnel (background)
+    gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --tunnel-through-iap \
+        --command="ssh -o StrictHostKeyChecking=no -i ~/.ssh/vm_key mooby@$VM_IP 'cd /home/mooby && claude-code -p \"$(echo "$PROMPT_CONTENT" | sed 's/"/\\"/g')\"'" \
+        2>/dev/null &
+
+    echo "  $NAME: agent started (background)"
+done
+
+echo ""
+echo "Swarm launched: ${#TASK_IDS[@]} agents"
+echo ""
+echo "Monitor:  codingmachines list"
+echo "SSH in:   codingmachines-ssh <vm-ip>"
+echo "Status:   codingmachines-status"
 SWARMEOF
-    chmod +x "$HOME/.local/bin/stockyard-swarm"
+    chmod +x "$HOME/.local/bin/codingmachines-swarm"
 
     log "Helper scripts created:"
-    echo "  stockyard-start   — Start the host VM"
-    echo "  stockyard-stop    — Stop the host VM (save money)"
-    echo "  stockyard-status  — Check host VM + daemon status"
-    echo "  stockyard-swarm   — Launch multiple agents from prompt files"
+    echo "  codingmachines              — CLI (list, run, stop, etc.)"
+    echo "  codingmachines-start        — Start the host VM"
+    echo "  codingmachines-stop         — Stop the host VM (save money)"
+    echo "  codingmachines-status       — Check host VM + daemon status"
+    echo "  codingmachines-ssh <ip>     — SSH into a micro-VM"
+    echo "  codingmachines-swarm        — Launch parallel coding agents"
 }
 
 # ── Summary ──────────────────────────────────────────────────────────
@@ -356,20 +468,21 @@ SWARMEOF
 print_summary() {
     echo ""
     echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
-    echo -e "${CYAN}  mcsquared.ai Developer Setup Complete${NC}"
+    echo -e "${CYAN}  mcsquared.ai CodingMachines Setup Complete${NC}"
     echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
     echo ""
     echo "  Platform:     $PLATFORM/$GOARCH"
-    echo "  Stockyard:    $HOME/.local/bin/stockyard"
-    echo "  Host VM:      $STOCKYARD_HOST (GCP Spot, auto-stops after 30min)"
-    echo "  Config:       $HOME/.stockyard/env.sh"
+    echo "  CLI:          $HOME/.local/bin/codingmachines"
+    echo "  Host:         $CM_HOST (GCP Spot, auto-stops after 30min)"
+    echo "  Config:       $HOME/.codingmachines/env.sh"
     echo ""
     echo -e "  ${GREEN}Quick Start:${NC}"
-    echo "    stockyard-status           # Check if host VM is running"
-    echo "    stockyard-start            # Start host VM if stopped"
-    echo "    stockyard list             # List running micro-VMs"
-    echo "    stockyard run --name test  # Spawn a micro-VM"
-    echo "    stockyard-swarm a.md b.md  # Launch coding swarm"
+    echo "    codingmachines-status              # Check if host is running"
+    echo "    codingmachines-start               # Start host VM if stopped"
+    echo "    codingmachines list                # List running micro-VMs"
+    echo "    codingmachines run --name my-task  # Spawn a micro-VM"
+    echo "    codingmachines-ssh 10.0.100.2      # SSH into a VM"
+    echo "    codingmachines-swarm a.md b.md     # Launch coding swarm"
     echo ""
     echo -e "  ${YELLOW}Note: Open a new terminal for PATH changes to take effect${NC}"
     echo ""
@@ -380,12 +493,12 @@ print_summary() {
 main() {
     echo ""
     echo -e "${CYAN}mcsquared.ai Developer Workstation Setup${NC}"
-    echo -e "${CYAN}Stockyard Coding Agent Farm${NC}"
+    echo -e "${CYAN}CodingMachines — Coding Agent Swarm${NC}"
     echo ""
 
     detect_platform
     install_prerequisites
-    build_stockyard_cli
+    build_cli
     configure_environment
     authenticate
     create_helper_scripts

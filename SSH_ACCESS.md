@@ -1,4 +1,4 @@
-# SSH Access to Stockyard Micro-VMs
+# SSH Access to CodingMachines Micro-VMs
 
 > Since Firecracker vsock is not available on GCP nested virtualization,
 > we use SSH over the TAP bridge network to access micro-VMs.
@@ -8,7 +8,7 @@
 ```
 Your Mac/PC
   └── gcloud IAP tunnel (encrypted)
-       └── stockyard-host (10.0.100.1)
+       └── codingmachines.mcsquared.cloud (10.0.100.1)
             └── SSH over bridge (flbr0)
                  ├── micro-VM 1 (10.0.100.2)
                  ├── micro-VM 2 (10.0.100.3)
@@ -20,11 +20,10 @@ Your Mac/PC
 ### 1. Copy the VM SSH key to your machine
 
 ```bash
-CLOUDSDK_ACTIVE_CONFIG_NAME=default \
-gcloud compute scp stockyard-host:/etc/stockyard/ssh/vm_key ~/.ssh/stockyard_vm_key \
+gcloud compute scp stockyard-host:/etc/stockyard/ssh/vm_key ~/.ssh/codingmachines_vm_key \
   --project=sales-demos-485118 --zone=us-central1-a --tunnel-through-iap
 
-chmod 600 ~/.ssh/stockyard_vm_key
+chmod 600 ~/.ssh/codingmachines_vm_key
 ```
 
 ### 2. Add SSH config
@@ -32,17 +31,17 @@ chmod 600 ~/.ssh/stockyard_vm_key
 Add to `~/.ssh/config`:
 
 ```ssh-config
-# Stockyard host via IAP tunnel
+# CodingMachines host via IAP tunnel
 Host stockyard-host
-    HostName 34.121.124.99
+    HostName codingmachines.mcsquared.cloud
     User pankaj_shroff_mcsquared_ai
-    ProxyCommand ~/dev/google-cloud-sdk/bin/gcloud compute start-iap-tunnel stockyard-host %p --project=sales-demos-485118 --zone=us-central1-a --listen-on-stdin 2>/dev/null
+    ProxyCommand gcloud compute start-iap-tunnel stockyard-host %p --project=sales-demos-485118 --zone=us-central1-a --listen-on-stdin 2>/dev/null
 
-# Stockyard micro-VMs via host jump
+# CodingMachines micro-VMs via host jump
 Host vm-*
     User mooby
     ProxyJump stockyard-host
-    IdentityFile ~/.ssh/stockyard_vm_key
+    IdentityFile ~/.ssh/codingmachines_vm_key
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
     LogLevel ERROR
@@ -88,8 +87,8 @@ gcloud compute ssh stockyard-host \
 VMs get DHCP addresses starting at `10.0.100.2`, assigned in creation order.
 
 ```bash
-# From your Mac (via stockyard CLI)
-stockyard list
+# From your Mac (via CodingMachines CLI)
+codingmachines list
 
 # Check DHCP leases (from host)
 gcloud compute ssh stockyard-host ... --command="cat /var/lib/stockyard/data/dnsmasq.leases"
@@ -109,7 +108,7 @@ All VMs use the `mooby` user (UID 1001). This user has:
 
 ## Sending Coding Prompts via SSH
 
-Since `stockyard exec` relies on vsock (broken on GCP), deliver prompts via SSH:
+Since `codingmachines exec` / `stockyard exec` relies on vsock (broken on GCP), deliver prompts via SSH:
 
 ```bash
 # From the host VM

@@ -1,7 +1,8 @@
-# Stockyard Coding Agent Farm — Setup Guide
+# CodingMachines — Admin Setup Guide
 
-> Version: 1.0 | Date: 2026-03-28
+> Version: 2.0 | Date: 2026-03-30
 > Model: Local Machine → GCP Host VM → Firecracker Micro-VMs (Coding Swarm)
+> Branded as: **CodingMachines** (wraps [Stockyard](https://github.com/prime-radiant-inc/stockyard))
 
 ## Architecture
 
@@ -10,7 +11,7 @@
 │  Developer Mac   │
 │  or Windows PC   │──── gRPC (port 65433) ────┐
 │                  │                            │
-│  stockyard CLI   │                            ▼
+│  codingmachines  │                            ▼
 └─────────────────┘                    ┌──────────────────┐
                                        │  GCP Spot VM      │
 ┌─────────────────┐                    │  (stockyard-host) │
@@ -81,9 +82,12 @@ gcloud compute instances start stockyard-host --zone=us-central1-a
 # (daemon auto-starts via systemd — see Admin Setup below)
 ```
 
-**Static IP**: `34.121.124.99` (never changes, even after restart)
+**DNS**: `codingmachines.mcsquared.cloud` → `34.121.124.99` (static IP, never changes)
 
-## Step 3: Install Stockyard CLI (one-time per developer)
+## Step 3: Install CodingMachines CLI (one-time per developer)
+
+> Developers should use the automated setup script instead of these manual steps:
+> `curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/dev-setup/main/setup.sh | bash`
 
 ### macOS (Apple Silicon)
 ```bash
@@ -135,29 +139,30 @@ chmod +x ~/.local/bin/stockyard
 ### macOS / Linux
 ```bash
 # Create config
-mkdir -p ~/.stockyard
-cat > ~/.stockyard/env.sh << 'EOF'
-export STOCKYARD_URL=grpc://34.121.124.99:65433
+mkdir -p ~/.codingmachines
+cat > ~/.codingmachines/env.sh << 'EOF'
+export STOCKYARD_URL=grpc://codingmachines.mcsquared.cloud:65433
+export CODINGMACHINES_HOST=codingmachines.mcsquared.cloud
 export PATH=$PATH:$HOME/.local/bin
 EOF
 
 # Add to shell profile
-echo 'source ~/.stockyard/env.sh' >> ~/.zshrc  # macOS
+echo 'source ~/.codingmachines/env.sh' >> ~/.zshrc  # macOS
 # OR
-echo 'source ~/.stockyard/env.sh' >> ~/.bashrc  # Linux
+echo 'source ~/.codingmachines/env.sh' >> ~/.bashrc  # Linux
 ```
 
 ### Windows (PowerShell)
 ```powershell
 # Set environment variables permanently
-[Environment]::SetEnvironmentVariable("STOCKYARD_URL", "grpc://34.121.124.99:65433", "User")
+[Environment]::SetEnvironmentVariable("STOCKYARD_URL", "grpc://codingmachines.mcsquared.cloud:65433", "User")
 [Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";$env:USERPROFILE\.local\bin", "User")
 ```
 
 ## Step 5: Verify Connection
 
 ```bash
-stockyard list
+codingmachines list
 # Expected output: "No tasks found" (or list of running tasks)
 ```
 
@@ -166,58 +171,52 @@ stockyard list
 ### Spawn a Micro-VM
 ```bash
 # Basic: 2 CPU, 4GB RAM
-stockyard run --name "my-task"
+codingmachines run --name "my-task" --no-tailscale
 
 # Custom resources
-stockyard run --name "heavy-build" --cpus 4 --memory 8G
-
-# With environment variables
-stockyard run --name "my-task" --env ANTHROPIC_API_KEY=sk-ant-... --env GITHUB_TOKEN=ghp_...
-
-# With .env file
-stockyard run --name "my-task" --env-file ~/.env
+codingmachines run --name "heavy-build" --cpus 4 --memory 8G --no-tailscale
 ```
 
-### Run Commands in a VM
+### SSH into a VM
 ```bash
-# Get task ID from stockyard list
-stockyard list
+# List VMs to find IPs
+codingmachines list
 
-# Execute a command
-stockyard exec <task-id> -- git clone https://github.com/mcsquared-ai/mc2-IgAN-LaunchToolkit
-stockyard exec <task-id> -- cd mc2-IgAN-LaunchToolkit && make dev
-stockyard exec <task-id> -- claude-code -p "fix the competitive tab"
+# SSH in (helper script)
+codingmachines-ssh 10.0.100.2
 
-# Continue on failure
-stockyard exec <task-id> --no-stop-on-failure -- make test
+# Or manually from the host
+ssh -i ~/.ssh/vm_key mooby@10.0.100.2
 ```
+
+> **Note**: `codingmachines exec` (aka `stockyard exec`) uses vsock which is
+> broken on GCP nested virtualization. Use SSH instead. See [SSH_ACCESS.md](SSH_ACCESS.md).
 
 ### Coding Swarm (multiple agents in parallel)
 ```bash
-# Spawn 3 VMs for 3 different tasks
-stockyard run --name "igan-fix-filters" --cpus 2 --memory 4G
-stockyard run --name "project2-auth" --cpus 2 --memory 4G
-stockyard run --name "project3-tests" --cpus 2 --memory 4G
+# Launch a swarm from prompt files
+codingmachines-swarm prompts/TRACK2A.md prompts/TRACK2B.md prompts/TRACK3A.md
 
-# Queue work in each
-stockyard exec <id1> -- claude-code -p "fix the dashboard filters"
-stockyard exec <id2> -- claude-code -p "add OAuth authentication"
-stockyard exec <id3> -- claude-code -p "write integration tests"
+# Or manually: spawn VMs then SSH to deliver prompts
+codingmachines run --name "task1" --no-tailscale
+codingmachines run --name "task2" --no-tailscale
+codingmachines-ssh 10.0.100.2  # deliver prompt to task1
+codingmachines-ssh 10.0.100.3  # deliver prompt to task2
 
 # Monitor
-stockyard list
+codingmachines list
 ```
 
 ### Stop and Clean Up
 ```bash
 # Stop a VM (workspace preserved in ZFS snapshot)
-stockyard stop <task-id>
+codingmachines stop <task-id>
 
 # List all (including stopped)
-stockyard list --status stopped
+codingmachines list --status stopped
 
 # Delete a task completely
-stockyard delete <task-id>
+codingmachines destroy --force <task-id>
 ```
 
 ## Secrets Management
@@ -251,20 +250,21 @@ gcloud compute ssh stockyard-host --zone=us-central1-a --tunnel-through-iap \
 Your CLI is trying to connect to a local daemon. Make sure `STOCKYARD_URL` is set:
 ```bash
 echo $STOCKYARD_URL
-# Should show: grpc://34.121.124.99:65433
+# Should show: grpc://codingmachines.mcsquared.cloud:65433
 ```
 
 ### "connection refused" on port 65433
 The host VM is probably stopped. Restart it:
 ```bash
-gcloud compute instances start stockyard-host --zone=us-central1-a
-# Wait 30 seconds, then retry
+codingmachines-start
+# Or manually: gcloud compute instances start stockyard-host --zone=us-central1-a
 ```
 
-### "queue is stopped"
-A previous command in the default queue failed. Use `--no-stop-on-failure`:
+### DNS not resolving
+Verify the DNS record is set up correctly:
 ```bash
-stockyard exec <id> --no-stop-on-failure -- <command>
+dig codingmachines.mcsquared.cloud +short
+# Should show: 34.121.124.99
 ```
 
 ### Host VM not starting
@@ -371,6 +371,9 @@ ANTHROPIC_API_KEY=<your-key>
 GITHUB_TOKEN=<your-token>
 GOOGLE_CLOUD_PROJECT=sales-demos-485118
 GCP_REGION=us-central1
+SUPABASE_URL=<your-supabase-url>
+SUPABASE_ANON_KEY=<your-supabase-key>
+GCS_BUCKET=<your-gcs-bucket>
 SECRETS
 sudo chmod 600 /etc/stockyard/secrets/.env
 
@@ -472,4 +475,62 @@ If enforced, admin must remove it:
 ```bash
 gcloud resource-manager org-policies disable-enforce \
   compute.disableNestedVirtualization --project=sales-demos-485118
+```
+
+### DNS Setup (Cloudflare)
+
+The domain `mcsquared.cloud` is managed via Cloudflare. Add an A record:
+
+| Type | Name | Content | Proxy | TTL |
+|------|------|---------|-------|-----|
+| A | `codingmachines` | `34.121.124.99` | DNS only (no proxy) | Auto |
+
+**Important**: Set proxy to "DNS only" (gray cloud), not "Proxied" (orange cloud).
+gRPC traffic on port 65433 cannot pass through Cloudflare's HTTP proxy.
+
+To add via Cloudflare API:
+```bash
+# Get zone ID
+ZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=mcsquared.cloud" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id')
+
+# Create A record
+curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "type": "A",
+    "name": "codingmachines",
+    "content": "34.121.124.99",
+    "ttl": 1,
+    "proxied": false
+  }'
+```
+
+For additional hosts (per-developer or per-workload), add more A records:
+- `codingmachines-dev.mcsquared.cloud` → dev host IP
+- `codingmachines-prod.mcsquared.cloud` → prod host IP
+- `codingmachines-<name>.mcsquared.cloud` → per-developer host IP
+
+### Multiple Hosts (Scaling)
+
+For teams needing isolated environments, provision additional hosts:
+
+```bash
+# Create a new host with unique name
+gcloud compute instances create stockyard-host-dev \
+  --zone=us-central1-a \
+  --machine-type=n2-standard-8 \
+  --provisioning-model=SPOT \
+  ...  # (same flags as primary host)
+
+# Reserve a new static IP
+gcloud compute addresses create codingmachines-dev-ip --region=us-central1
+
+# Add DNS: codingmachines-dev.mcsquared.cloud → new IP
+```
+
+Developers switch hosts by changing their env:
+```bash
+export STOCKYARD_URL=grpc://codingmachines-dev.mcsquared.cloud:65433
 ```
