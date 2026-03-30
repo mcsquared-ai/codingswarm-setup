@@ -20,7 +20,7 @@ Your Mac/PC
 ### 1. Copy the VM SSH key to your machine
 
 ```bash
-gcloud compute scp stockyard-host:/etc/stockyard/ssh/vm_key ~/.ssh/codingmachines_vm_key \
+gcloud compute scp codingmachines:/etc/stockyard/ssh/vm_key ~/.ssh/codingmachines_vm_key \
   --project=sales-demos-485118 --zone=us-central1-a --tunnel-through-iap
 
 chmod 600 ~/.ssh/codingmachines_vm_key
@@ -32,15 +32,15 @@ Add to `~/.ssh/config`:
 
 ```ssh-config
 # CodingMachines host via IAP tunnel
-Host stockyard-host
+Host codingmachines
     HostName codingmachines.mcsquared.cloud
     User pankaj_shroff_mcsquared_ai
-    ProxyCommand gcloud compute start-iap-tunnel stockyard-host %p --project=sales-demos-485118 --zone=us-central1-a --listen-on-stdin 2>/dev/null
+    ProxyCommand gcloud compute start-iap-tunnel codingmachines %p --project=sales-demos-485118 --zone=us-central1-a --listen-on-stdin 2>/dev/null
 
 # CodingMachines micro-VMs via host jump
 Host vm-*
     User mooby
-    ProxyJump stockyard-host
+    ProxyJump codingmachines
     IdentityFile ~/.ssh/codingmachines_vm_key
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
@@ -57,7 +57,7 @@ Host vm-*
 ```bash
 # SSH into a VM at 10.0.100.2
 CLOUDSDK_ACTIVE_CONFIG_NAME=default \
-gcloud compute ssh stockyard-host \
+gcloud compute ssh codingmachines \
   --project=sales-demos-485118 --zone=us-central1-a --tunnel-through-iap \
   -- -t ssh -i ~/.ssh/stockyard_vm_key mooby@10.0.100.2
 ```
@@ -66,7 +66,7 @@ gcloud compute ssh stockyard-host \
 
 ```bash
 # Jump through host to VM
-ssh -J stockyard-host mooby@10.0.100.2
+ssh -J codingmachines mooby@10.0.100.2
 ```
 
 ### Run a command without interactive shell
@@ -77,7 +77,7 @@ ssh -i ~/.ssh/vm_key mooby@10.0.100.2 'uname -a'
 
 # From your Mac (two-hop)
 CLOUDSDK_ACTIVE_CONFIG_NAME=default \
-gcloud compute ssh stockyard-host \
+gcloud compute ssh codingmachines \
   --project=sales-demos-485118 --zone=us-central1-a --tunnel-through-iap \
   --command="ssh mooby@10.0.100.2 'uname -a'"
 ```
@@ -91,7 +91,7 @@ VMs get DHCP addresses starting at `10.0.100.2`, assigned in creation order.
 codingmachines list
 
 # Check DHCP leases (from host)
-gcloud compute ssh stockyard-host ... --command="cat /var/lib/stockyard/data/dnsmasq.leases"
+gcloud compute ssh codingmachines ... --command="cat /var/lib/stockyard/data/dnsmasq.leases"
 ```
 
 The DHCP lease file shows: `<timestamp> <mac> <ip> <hostname> *`

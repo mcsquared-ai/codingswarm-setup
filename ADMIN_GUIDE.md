@@ -14,7 +14,7 @@
 │  codingmachines  │                            ▼
 └─────────────────┘                    ┌──────────────────┐
                                        │  GCP Spot VM      │
-┌─────────────────┐                    │  (stockyard-host) │
+┌─────────────────┐                    │  (codingmachines) │
 │  Developer 2     │──── gRPC ─────────│                    │
 │  Mac/Windows     │                    │  stockyardd        │
 └─────────────────┘                    │  ├── micro-VM 1    │
@@ -72,11 +72,11 @@ The Stockyard host auto-stops after 30 minutes idle. To restart:
 
 ```bash
 # Check status
-gcloud compute instances describe stockyard-host \
+gcloud compute instances describe codingmachines \
   --zone=us-central1-a --format='value(status)'
 
 # Start if stopped
-gcloud compute instances start stockyard-host --zone=us-central1-a
+gcloud compute instances start codingmachines --zone=us-central1-a
 
 # Wait ~30 seconds for boot, then verify daemon
 # (daemon auto-starts via systemd — see Admin Setup below)
@@ -141,8 +141,9 @@ chmod +x ~/.local/bin/stockyard
 # Create config
 mkdir -p ~/.codingmachines
 cat > ~/.codingmachines/env.sh << 'EOF'
-export STOCKYARD_URL=grpc://codingmachines.mcsquared.cloud:65433
+export CODINGMACHINES_URL=grpc://codingmachines.mcsquared.cloud:65433
 export CODINGMACHINES_HOST=codingmachines.mcsquared.cloud
+export STOCKYARD_URL=$CODINGMACHINES_URL  # required by underlying Stockyard binary
 export PATH=$PATH:$HOME/.local/bin
 EOF
 
@@ -155,7 +156,8 @@ echo 'source ~/.codingmachines/env.sh' >> ~/.bashrc  # Linux
 ### Windows (PowerShell)
 ```powershell
 # Set environment variables permanently
-[Environment]::SetEnvironmentVariable("STOCKYARD_URL", "grpc://codingmachines.mcsquared.cloud:65433", "User")
+[Environment]::SetEnvironmentVariable("CODINGMACHINES_URL", "grpc://codingmachines.mcsquared.cloud:65433", "User")
+[Environment]::SetEnvironmentVariable("STOCKYARD_URL", "grpc://codingmachines.mcsquared.cloud:65433", "User")  # required by underlying binary
 [Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";$env:USERPROFILE\.local\bin", "User")
 ```
 
@@ -230,7 +232,7 @@ Secrets are stored on the host VM at `/etc/stockyard/secrets/.env` and injected 
 
 To update secrets (admin only):
 ```bash
-gcloud compute ssh stockyard-host --zone=us-central1-a --tunnel-through-iap \
+gcloud compute ssh codingmachines --zone=us-central1-a --tunnel-through-iap \
   --command="sudo nano /etc/stockyard/secrets/.env"
 ```
 
@@ -247,9 +249,9 @@ gcloud compute ssh stockyard-host --zone=us-central1-a --tunnel-through-iap \
 ## Troubleshooting
 
 ### "connection error: dial unix /var/run/stockyard/stockyard.sock"
-Your CLI is trying to connect to a local daemon. Make sure `STOCKYARD_URL` is set:
+Your CLI is trying to connect to a local daemon. Make sure `CODINGMACHINES_URL` is set:
 ```bash
-echo $STOCKYARD_URL
+echo $CODINGMACHINES_URL
 # Should show: grpc://codingmachines.mcsquared.cloud:65433
 ```
 
@@ -257,7 +259,7 @@ echo $STOCKYARD_URL
 The host VM is probably stopped. Restart it:
 ```bash
 codingmachines-start
-# Or manually: gcloud compute instances start stockyard-host --zone=us-central1-a
+# Or manually: gcloud compute instances start codingmachines --zone=us-central1-a
 ```
 
 ### DNS not resolving
@@ -270,7 +272,7 @@ dig codingmachines.mcsquared.cloud +short
 ### Host VM not starting
 GCP Spot capacity might be exhausted. Wait a few minutes and retry, or check:
 ```bash
-gcloud compute instances describe stockyard-host --zone=us-central1-a --format='value(status,scheduling.provisioningModel)'
+gcloud compute instances describe codingmachines --zone=us-central1-a --format='value(status,scheduling.provisioningModel)'
 ```
 
 ---
@@ -286,7 +288,7 @@ gcloud compute firewall-rules create stockyard-grpc --network=stockyard-net --al
 
 gcloud compute addresses create stockyard-ip --region=us-central1
 
-gcloud compute instances create stockyard-host \
+gcloud compute instances create codingmachines \
   --zone=us-central1-a \
   --machine-type=n2-standard-8 \
   --provisioning-model=SPOT \
@@ -304,15 +306,15 @@ gcloud compute instances create stockyard-host \
 
 # Assign static IP (stop/start required)
 STATIC_IP=$(gcloud compute addresses describe stockyard-ip --region=us-central1 --format='value(address)')
-gcloud compute instances stop stockyard-host --zone=us-central1-a
-gcloud compute instances delete-access-config stockyard-host --zone=us-central1-a --access-config-name="external-nat"
-gcloud compute instances add-access-config stockyard-host --zone=us-central1-a --address=$STATIC_IP
-gcloud compute instances start stockyard-host --zone=us-central1-a
+gcloud compute instances stop codingmachines --zone=us-central1-a
+gcloud compute instances delete-access-config codingmachines --zone=us-central1-a --access-config-name="external-nat"
+gcloud compute instances add-access-config codingmachines --zone=us-central1-a --address=$STATIC_IP
+gcloud compute instances start codingmachines --zone=us-central1-a
 ```
 
 ### Install Stockyard on Host VM
 ```bash
-gcloud compute ssh stockyard-host --zone=us-central1-a --tunnel-through-iap --command='
+gcloud compute ssh codingmachines --zone=us-central1-a --tunnel-through-iap --command='
 set -e
 
 # ZFS
@@ -379,7 +381,7 @@ sudo chmod 600 /etc/stockyard/secrets/.env
 
 # SSH keys for VM access (since vsock is broken on GCP nested virt)
 sudo mkdir -p /etc/stockyard/ssh
-sudo ssh-keygen -t ed25519 -f /etc/stockyard/ssh/vm_key -N "" -C "stockyard-host-to-vm"
+sudo ssh-keygen -t ed25519 -f /etc/stockyard/ssh/vm_key -N "" -C "codingmachines-to-vm"
 sudo chmod 600 /etc/stockyard/ssh/vm_key
 sudo chmod 644 /etc/stockyard/ssh/vm_key.pub
 
@@ -518,7 +520,7 @@ For teams needing isolated environments, provision additional hosts:
 
 ```bash
 # Create a new host with unique name
-gcloud compute instances create stockyard-host-dev \
+gcloud compute instances create codingmachines-dev \
   --zone=us-central1-a \
   --machine-type=n2-standard-8 \
   --provisioning-model=SPOT \
@@ -532,5 +534,6 @@ gcloud compute addresses create codingmachines-dev-ip --region=us-central1
 
 Developers switch hosts by changing their env:
 ```bash
-export STOCKYARD_URL=grpc://codingmachines-dev.mcsquared.cloud:65433
+export CODINGMACHINES_URL=grpc://codingmachines-dev.mcsquared.cloud:65433
+export STOCKYARD_URL=$CODINGMACHINES_URL
 ```

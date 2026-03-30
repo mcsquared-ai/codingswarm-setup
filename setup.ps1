@@ -103,17 +103,19 @@ Log "CodingMachines CLI: $binDir\codingmachines.bat"
 
 Info "Configuring environment..."
 
-[Environment]::SetEnvironmentVariable("STOCKYARD_URL", $CM_URL, "User")
+[Environment]::SetEnvironmentVariable("CODINGMACHINES_URL", $CM_URL, "User")
+[Environment]::SetEnvironmentVariable("STOCKYARD_URL", $CM_URL, "User")  # required by underlying binary
 [Environment]::SetEnvironmentVariable("CODINGMACHINES_HOST", $CM_HOST, "User")
 $currentPath = [Environment]::GetEnvironmentVariable("PATH", "User")
 if ($currentPath -notlike "*\.local\bin*") {
     [Environment]::SetEnvironmentVariable("PATH", "$currentPath;$binDir", "User")
 }
 
+$env:CODINGMACHINES_URL = $CM_URL
 $env:STOCKYARD_URL = $CM_URL
 $env:PATH = "$env:PATH;$binDir"
 
-Log "STOCKYARD_URL=$CM_URL"
+Log "CODINGMACHINES_URL=$CM_URL"
 
 # ── Verify ───────────────────────────────────────────────────────────
 
@@ -124,7 +126,7 @@ try {
         Log "CodingMachines daemon: connected"
     } else {
         Warn "Cannot reach daemon. Host VM may be stopped."
-        Write-Host "  Run: gcloud compute instances start stockyard-host --zone=us-central1-a"
+        Write-Host "  Run: gcloud compute instances start codingmachines --zone=us-central1-a"
     }
 } catch {
     Warn "Connection failed: $_"
@@ -139,7 +141,7 @@ Write-Host "================================================" -ForegroundColor C
 Write-Host ""
 Write-Host "  CLI:    $binDir\codingmachines.bat"
 Write-Host "  Host:   $CM_HOST"
-Write-Host "  Config: STOCKYARD_URL env var"
+Write-Host "  Config: CODINGMACHINES_URL env var"
 Write-Host ""
 Write-Host "  Quick Start:" -ForegroundColor Green
 Write-Host "    codingmachines list              # List running micro-VMs"

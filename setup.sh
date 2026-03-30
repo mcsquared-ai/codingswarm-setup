@@ -16,7 +16,7 @@ CM_PORT="65433"
 CM_URL="grpc://${CM_HOST}:${CM_PORT}"
 GCP_PROJECT="sales-demos-485118"
 GCP_ZONE="us-central1-a"
-GCP_VM_NAME="stockyard-host"
+GCP_VM_NAME="codingmachines"
 STOCKYARD_REPO="https://github.com/prime-radiant-inc/stockyard.git"
 
 # Colors
@@ -227,8 +227,9 @@ configure_environment() {
     mkdir -p "$HOME/.codingmachines"
     cat > "$HOME/.codingmachines/env.sh" << EOF
 # mcsquared.ai CodingMachines — Coding Agent Swarm
-export STOCKYARD_URL=${CM_URL}
+export CODINGMACHINES_URL=${CM_URL}
 export CODINGMACHINES_HOST=${CM_HOST}
+export STOCKYARD_URL=\$CODINGMACHINES_URL  # required by underlying Stockyard binary
 export PATH=\$PATH:\$HOME/.local/bin
 EOF
 
@@ -254,10 +255,11 @@ EOF
     fi
 
     # Source for current session
+    export CODINGMACHINES_URL="${CM_URL}"
     export STOCKYARD_URL="${CM_URL}"
     export PATH="$PATH:$HOME/.local/bin"
 
-    log "STOCKYARD_URL=$CM_URL"
+    log "CODINGMACHINES_URL=$CM_URL"
 }
 
 # ── Authenticate ─────────────────────────────────────────────────────
@@ -308,7 +310,7 @@ create_helper_scripts() {
 #!/bin/bash
 GCP_PROJECT="sales-demos-485118"
 GCP_ZONE="us-central1-a"
-GCP_VM="stockyard-host"
+GCP_VM="codingmachines"
 echo "Starting CodingMachines host VM..."
 gcloud compute instances start "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT"
 echo "Waiting for boot..."
@@ -323,7 +325,7 @@ EOF
 #!/bin/bash
 GCP_PROJECT="sales-demos-485118"
 GCP_ZONE="us-central1-a"
-GCP_VM="stockyard-host"
+GCP_VM="codingmachines"
 echo "Stopping CodingMachines host VM..."
 gcloud compute instances stop "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT"
 echo "Stopped. No compute charges while stopped."
@@ -335,7 +337,7 @@ EOF
 #!/bin/bash
 GCP_PROJECT="sales-demos-485118"
 GCP_ZONE="us-central1-a"
-GCP_VM="stockyard-host"
+GCP_VM="codingmachines"
 STATUS=$(gcloud compute instances describe "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --format='value(status)' 2>/dev/null)
 echo "Host VM: $STATUS"
 if [ "$STATUS" = "RUNNING" ]; then
@@ -351,12 +353,12 @@ EOF
 # Example: codingmachines-ssh 10.0.100.2
 GCP_PROJECT="sales-demos-485118"
 GCP_ZONE="us-central1-a"
-GCP_VM="stockyard-host"
+GCP_VM="codingmachines"
 VM_IP="${1:?Usage: codingmachines-ssh <vm-ip>}"
 
 if [ -f "$HOME/.ssh/codingmachines_vm_key" ]; then
     # Use ProxyJump if SSH config is set up
-    ssh -J stockyard-host "mooby@$VM_IP" 2>/dev/null || \
+    ssh -J codingmachines "mooby@$VM_IP" 2>/dev/null || \
     gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --tunnel-through-iap \
         -- -t ssh -i "$HOME/.ssh/codingmachines_vm_key" "mooby@$VM_IP"
 else
@@ -375,7 +377,7 @@ set -e
 
 GCP_PROJECT="sales-demos-485118"
 GCP_ZONE="us-central1-a"
-GCP_VM="stockyard-host"
+GCP_VM="codingmachines"
 
 if [ $# -eq 0 ]; then
     echo "Usage: codingmachines-swarm <prompt1.md> [prompt2.md] ..."
