@@ -126,9 +126,9 @@ PROMPT
 
 ```bash
 # Launch 3 VMs
-ID1=$(codingmachines run --name track2a --no-tailscale 2>&1 | grep 'Task created' | awk '{print $3}')
-ID2=$(codingmachines run --name track2b --no-tailscale 2>&1 | grep 'Task created' | awk '{print $3}')
-ID3=$(codingmachines run --name track3a --no-tailscale 2>&1 | grep 'Task created' | awk '{print $3}')
+ID1=$(codingmachines run --name track2a 2>&1 | grep 'Task created' | awk '{print $3}')
+ID2=$(codingmachines run --name track2b 2>&1 | grep 'Task created' | awk '{print $3}')
+ID3=$(codingmachines run --name track3a 2>&1 | grep 'Task created' | awk '{print $3}')
 
 sleep 10  # wait for DHCP
 

@@ -173,11 +173,9 @@ codingmachines list
 ### Spawn a Micro-VM
 ```bash
 # Basic: 2 CPU, 4GB RAM
-codingmachines run --name "my-task" --no-tailscale
-
+codingmachines run --name "my-task"
 # Custom resources
-codingmachines run --name "heavy-build" --cpus 4 --memory 8G --no-tailscale
-```
+codingmachines run --name "heavy-build" --cpus 4 --memory 8G```
 
 ### SSH into a VM
 ```bash
@@ -200,9 +198,7 @@ ssh -i ~/.ssh/vm_key mooby@10.0.100.2
 codingmachines-swarm prompts/TRACK2A.md prompts/TRACK2B.md prompts/TRACK3A.md
 
 # Or manually: spawn VMs then SSH to deliver prompts
-codingmachines run --name "task1" --no-tailscale
-codingmachines run --name "task2" --no-tailscale
-codingmachines-ssh 10.0.100.2  # deliver prompt to task1
+codingmachines run --name "task1"codingmachines run --name "task2"codingmachines-ssh 10.0.100.2  # deliver prompt to task1
 codingmachines-ssh 10.0.100.3  # deliver prompt to task2
 
 # Monitor

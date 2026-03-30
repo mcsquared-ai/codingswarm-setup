@@ -206,7 +206,15 @@ build_cli() {
 #!/bin/bash
 # CodingMachines — mcsquared.ai coding agent orchestrator
 # Wraps Stockyard (https://github.com/prime-radiant-inc/stockyard)
-exec stockyard "$@"
+#
+# Auto-injects --no-tailscale for "run" commands since CodingMachines
+# uses SSH over bridge network instead of Tailscale for VM access.
+if [ "${1:-}" = "run" ]; then
+    shift
+    exec stockyard run --no-tailscale "$@"
+else
+    exec stockyard "$@"
+fi
 WRAPPER
     chmod +x "$HOME/.local/bin/codingmachines"
 
@@ -398,7 +406,7 @@ for PROMPT_FILE in "${PROMPTS[@]}"; do
     NAME=$(basename "$PROMPT_FILE" .md | tr '[:upper:]' '[:lower:]' | tr '_' '-')
     TASK_NAMES+=("$NAME")
     echo -n "  Creating VM: $NAME ... "
-    TASK_ID=$(codingmachines run --name "$NAME" --no-tailscale 2>&1 | grep "Task created:" | awk '{print $3}')
+    TASK_ID=$(codingmachines run --name "$NAME" 2>&1 | grep "Task created:" | awk '{print $3}')
     if [ -n "$TASK_ID" ]; then
         TASK_IDS+=("$TASK_ID")
         echo "$TASK_ID"

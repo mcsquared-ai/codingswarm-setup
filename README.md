@@ -39,8 +39,7 @@ codingmachines-status    # verify it's running
 
 ```bash
 # Spawn a micro-VM
-codingmachines run --name "my-task" --no-tailscale
-
+codingmachines run --name "my-task"
 # List running VMs
 codingmachines list
 
@@ -62,7 +61,7 @@ codingmachines-stop
 | Command | What it does |
 |---------|-------------|
 | `codingmachines list` | List all micro-VMs (running + stopped) |
-| `codingmachines run --name <name> --no-tailscale` | Spawn a new micro-VM |
+| `codingmachines run --name <name>` | Spawn a new micro-VM |
 | `codingmachines stop <task-id>` | Stop a VM (workspace preserved) |
 | `codingmachines destroy --force <task-id>` | Delete a VM and its workspace |
 | `codingmachines-start` | Boot the GCP host VM |
