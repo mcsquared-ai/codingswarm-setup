@@ -2,7 +2,7 @@
 # mcsquared.ai — Developer Workstation Setup + CodingMachines Agent Swarm
 # Windows PowerShell version
 #
-# Run: irm https://raw.githubusercontent.com/mcsquared-ai/dev-setup/main/setup.ps1 | iex
+# Run: irm https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/setup.ps1 | iex
 # Or:  .\setup.ps1
 # ============================================================================
 
@@ -37,7 +37,7 @@ if (-not $wslInstalled) {
     Write-Host "  1. Open PowerShell and run: wsl --install -d Ubuntu-24.04"
     Write-Host "  2. Open Ubuntu from Start Menu"
     Write-Host "  3. Run this inside Ubuntu:"
-    Write-Host "     curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/dev-setup/main/setup.sh | bash"
+    Write-Host "     curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/setup.sh | bash"
     exit 0
 }
 

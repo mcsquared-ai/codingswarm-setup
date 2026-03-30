@@ -87,7 +87,7 @@ gcloud compute instances start stockyard-host --zone=us-central1-a
 ## Step 3: Install CodingMachines CLI (one-time per developer)
 
 > Developers should use the automated setup script instead of these manual steps:
-> `curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/dev-setup/main/setup.sh | bash`
+> `curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/setup.sh | bash`
 
 ### macOS (Apple Silicon)
 ```bash

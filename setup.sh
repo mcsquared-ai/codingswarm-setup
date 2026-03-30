@@ -2,7 +2,7 @@
 # ============================================================================
 # mcsquared.ai — Developer Workstation Setup + CodingMachines Agent Swarm
 #
-# Run: curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/dev-setup/main/setup.sh | bash
+# Run: curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/setup.sh | bash
 # Or:  bash setup.sh
 #
 # Supports: macOS (arm64/amd64), Linux (x86_64), Windows (WSL2)

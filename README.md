@@ -6,12 +6,12 @@ One-command setup for developer workstations + CodingMachines coding agent swarm
 
 ### macOS / Linux
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/dev-setup/main/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/setup.sh | bash
 ```
 
 ### Windows (PowerShell as Admin)
 ```powershell
-irm https://raw.githubusercontent.com/mcsquared-ai/dev-setup/main/setup.ps1 | iex
+irm https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/setup.ps1 | iex
 ```
 
 ## What It Does
