@@ -118,7 +118,7 @@ ssh -i ~/.ssh/vm_key mooby@$VM_IP 'bash -ls' <<'PROMPT'
 cd /home/mooby
 git clone https://github.com/mcsquared-ai/mc2-IgAN-LaunchToolkit
 cd mc2-IgAN-LaunchToolkit
-claude-code -p "$(cat prompts/TRACK2A_NPI_HCP_REGISTRY.md)"
+claude-code --dangerously-skip-permissions -p "$(cat prompts/TRACK2A_NPI_HCP_REGISTRY.md)"
 PROMPT
 ```
 
@@ -139,7 +139,7 @@ for i in 2 3 4; do
     git clone https://github.com/mcsquared-ai/mc2-IgAN-LaunchToolkit
     cd mc2-IgAN-LaunchToolkit
     # prompt varies per VM — use task name or index to pick
-    claude-code -p "\$(cat prompts/TRACK2A_NPI_HCP_REGISTRY.md)"
+    claude-code --dangerously-skip-permissions -p "\$(cat prompts/TRACK2A_NPI_HCP_REGISTRY.md)"
 PROMPT
 done
 

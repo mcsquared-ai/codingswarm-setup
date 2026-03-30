@@ -471,7 +471,7 @@ for i in "${!PROMPTS[@]}"; do
 
         # Start agent in tmux with logging
         ssh -o StrictHostKeyChecking=no -i $SSH_KEY mooby@${VM_IP} '
-            tmux new-session -d -s agent \"bash -c \\\"claude-code -p \\\\\\\"\\\$(cat /home/mooby/prompt.md)\\\\\\\" 2>&1 | tee /home/mooby/agent.log; echo AGENT_EXIT_CODE=\\\\\\\$? >> /home/mooby/agent.log\\\"\"
+            tmux new-session -d -s agent \"bash -c \\\"claude-code --dangerously-skip-permissions -p \\\\\\\"\\\$(cat /home/mooby/prompt.md)\\\\\\\" 2>&1 | tee /home/mooby/agent.log; echo AGENT_EXIT_CODE=\\\\\\\$? >> /home/mooby/agent.log\\\"\"
         '
     "
     echo "    started in tmux session 'agent'"
