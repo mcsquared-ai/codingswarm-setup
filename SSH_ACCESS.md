@@ -1,203 +1,126 @@
 # SSH Access to CodingMachines Micro-VMs
 
-> Since Firecracker vsock is not available on GCP nested virtualization,
-> we use SSH over the TAP bridge network to access micro-VMs.
+> Micro-VMs join the Tailscale tailnet at boot. SSH directly from any
+> device on your tailnet — no IAP tunnels or jump hosts needed.
 
 ## Architecture
 
 ```
-Your Mac/PC
-  └── gcloud IAP tunnel (encrypted)
-       └── codingmachines.mcsquared.cloud (10.0.100.1)
-            └── SSH over bridge (flbr0)
-                 ├── micro-VM 1 (10.0.100.2)
-                 ├── micro-VM 2 (10.0.100.3)
-                 └── micro-VM N (10.0.100.N+1)
+Your Mac/PC (on Tailscale)
+  └── SSH directly via Tailscale
+       ├── stockyard-abc12345 (micro-VM 1)
+       ├── stockyard-def67890 (micro-VM 2)
+       └── stockyard-ghi11111 (micro-VM 3)
 ```
+
+Each VM appears on your Tailscale tailnet with hostname `stockyard-<task-id>`.
 
 ## One-Time Setup (per developer)
 
-### 1. Copy the VM SSH key to your machine
+### 1. Install Tailscale on your Mac
 
 ```bash
-gcloud compute scp codingmachines:/etc/stockyard/ssh/vm_key ~/.ssh/codingmachines_vm_key \
-  --project=sales-demos-485118 --zone=us-central1-a --tunnel-through-iap
-
-chmod 600 ~/.ssh/codingmachines_vm_key
+brew install --cask tailscale
 ```
 
-### 2. Add SSH config
+Then open Tailscale from the menu bar and sign in to your tailnet.
 
-Add to `~/.ssh/config`:
+### 2. Verify your Mac is on the tailnet
 
-```ssh-config
-# CodingMachines host via IAP tunnel
-Host codingmachines
-    HostName codingmachines.mcsquared.cloud
-    User pankaj_shroff_mcsquared_ai
-    ProxyCommand gcloud compute start-iap-tunnel codingmachines %p --project=sales-demos-485118 --zone=us-central1-a --listen-on-stdin 2>/dev/null
-
-# CodingMachines micro-VMs via host jump
-Host vm-*
-    User mooby
-    ProxyJump codingmachines
-    IdentityFile ~/.ssh/codingmachines_vm_key
-    StrictHostKeyChecking no
-    UserKnownHostsFile /dev/null
-    LogLevel ERROR
+```bash
+tailscale status
 ```
 
-> **Note**: Replace `pankaj_shroff_mcsquared_ai` with your OS Login username
-> (run `gcloud compute os-login describe-profile --format='value(posixAccounts[0].username)'`).
+You should see your machine listed. When VMs are running, they'll appear as `stockyard-<id>`.
 
 ## Usage
 
-### Quick SSH (one-liner, no config needed)
+### SSH into a VM
 
 ```bash
-# SSH into a VM at 10.0.100.2
-gcloud compute ssh codingmachines \
-  --project=sales-demos-485118 --zone=us-central1-a --tunnel-through-iap \
-  -- -t ssh -i ~/.ssh/codingmachines_vm_key mooby@10.0.100.2
+# Find running VMs
+codingmachines list
+tailscale status | grep stockyard-
+
+# SSH in
+codingmachines-ssh stockyard-abc12345
+
+# Or directly
+ssh mooby@stockyard-abc12345
 ```
 
-### With SSH config (after setup above)
+### Attach to running agent
 
 ```bash
-# Jump through host to VM
-ssh -J codingmachines mooby@10.0.100.2
+codingmachines-ssh stockyard-abc12345
+tmux attach -t agent    # watch live — Ctrl+B, D to detach
 ```
 
 ### Run a command without interactive shell
 
 ```bash
-# From host (if already SSH'd in)
-ssh -i ~/.ssh/vm_key mooby@10.0.100.2 'uname -a'
-
-# From your Mac (two-hop)
-CLOUDSDK_ACTIVE_CONFIG_NAME=default \
-gcloud compute ssh codingmachines \
-  --project=sales-demos-485118 --zone=us-central1-a --tunnel-through-iap \
-  --command="ssh mooby@10.0.100.2 'uname -a'"
+ssh mooby@stockyard-abc12345 'uname -a'
+ssh mooby@stockyard-abc12345 'cd /home/mooby/work && git log --oneline -5'
 ```
 
-## Finding VM IPs
-
-VMs get DHCP addresses starting at `10.0.100.2`, assigned in creation order.
+### Copy files to/from a VM
 
 ```bash
-# From your Mac (via CodingMachines CLI)
-codingmachines list
-
-# Check DHCP leases (from host)
-gcloud compute ssh codingmachines ... --command="cat /var/lib/stockyard/data/dnsmasq.leases"
+scp mooby@stockyard-abc12345:/home/mooby/work/data/silver/nephrologists.json .
+scp local-file.py mooby@stockyard-abc12345:/home/mooby/work/
 ```
 
-The DHCP lease file shows: `<timestamp> <mac> <ip> <hostname> *`
+## Finding VMs
 
-Hostnames follow the pattern `stockyard-<task-id>`, e.g., `stockyard-7ad72caa`.
+```bash
+# List all VMs (running + stopped)
+codingmachines list
+
+# See VMs on Tailscale
+tailscale status | grep stockyard-
+
+# Full monitoring dashboard
+codingmachines-monitor
+```
+
+VM hostnames follow the pattern `stockyard-<task-id>`, e.g., `stockyard-7ad72caa`.
 
 ## VM User
 
 All VMs use the `mooby` user (UID 1001). This user has:
 - Passwordless sudo
-- SSH pubkey auth (key baked into rootfs)
+- Tailscale SSH access (key managed by Tailscale)
 - Home directory at `/home/mooby`
-- Secrets injected as environment variables from `/etc/stockyard/secrets/.env`
+- Secrets injected as environment variables at boot
 
-## Sending Coding Prompts via SSH
+## Sending Coding Prompts
 
-Since `codingmachines exec` / `stockyard exec` relies on vsock (broken on GCP), deliver prompts via SSH:
+Agents are launched by `codingmachines-swarm` which handles VM creation,
+Tailscale join, prompt delivery, and tmux session setup automatically.
 
-```bash
-# From the host VM
-VM_IP=10.0.100.2
-
-# Clone repo and run claude-code
-ssh -i ~/.ssh/vm_key mooby@$VM_IP 'bash -ls' <<'PROMPT'
-cd /home/mooby
-git clone https://github.com/mcsquared-ai/mc2-IgAN-LaunchToolkit
-cd mc2-IgAN-LaunchToolkit
-claude-code --dangerously-skip-permissions -p "$(cat prompts/TRACK2A_NPI_HCP_REGISTRY.md)"
-PROMPT
-```
-
-### Launch a coding swarm (3 parallel agents)
+For manual prompt delivery:
 
 ```bash
-# Launch 3 VMs
-ID1=$(codingmachines run --name track2a 2>&1 | grep 'Task created' | awk '{print $3}')
-ID2=$(codingmachines run --name track2b 2>&1 | grep 'Task created' | awk '{print $3}')
-ID3=$(codingmachines run --name track3a 2>&1 | grep 'Task created' | awk '{print $3}')
+# Copy prompt to VM
+scp my-prompt.md mooby@stockyard-abc12345:/home/mooby/prompt.md
 
-sleep 10  # wait for DHCP
-
-# Deliver prompts via SSH (background each)
-for i in 2 3 4; do
-  ssh -i ~/.ssh/vm_key mooby@10.0.100.$i 'bash -ls' <<PROMPT &
-    cd /home/mooby
-    git clone https://github.com/mcsquared-ai/mc2-IgAN-LaunchToolkit
-    cd mc2-IgAN-LaunchToolkit
-    # prompt varies per VM — use task name or index to pick
-    claude-code --dangerously-skip-permissions -p "\$(cat prompts/TRACK2A_NPI_HCP_REGISTRY.md)"
-PROMPT
-done
-
-wait
-echo "All agents complete."
+# Launch agent in tmux
+ssh mooby@stockyard-abc12345 'tmux new-session -d -s agent "claude --dangerously-skip-permissions -p \"$(cat /home/mooby/prompt.md)\" 2>&1 | tee /home/mooby/agent.log"'
 ```
 
-## Troubleshooting
-
-### "Permission denied (publickey)"
-
-The SSH key wasn't baked into the rootfs, or you're using the wrong key.
+## Monitoring
 
 ```bash
-# Verify from host
-ssh -v -i ~/.ssh/vm_key mooby@10.0.100.2
-
-# Re-inject key into rootfs (requires stopping all VMs)
-sudo mount /tank/stockyard/images/rootfs/rootfs.ext4 /tmp/rootfs-mount
-sudo cp /etc/stockyard/ssh/vm_key.pub /tmp/rootfs-mount/home/mooby/.ssh/authorized_keys
-sudo chown 1001:1001 /tmp/rootfs-mount/home/mooby/.ssh/authorized_keys
-sudo chmod 600 /tmp/rootfs-mount/home/mooby/.ssh/authorized_keys
-sudo umount /tmp/rootfs-mount
-sudo zfs destroy tank/stockyard/images/rootfs@base
-sudo zfs snapshot tank/stockyard/images/rootfs@base
+codingmachines-monitor                         # all agents
+codingmachines-logs stockyard-abc12345         # last 100 lines
+codingmachines-logs stockyard-abc12345 -f      # stream live
+codingmachines-logs stockyard-abc12345 --raw   # include JSON
 ```
 
-### VM has no internet
-
-Check NAT and forwarding on the host:
-
-```bash
-# Verify NAT rule exists
-sudo iptables -t nat -L POSTROUTING -n | grep 10.0.100
-
-# Verify forwarding
-sysctl net.ipv4.ip_forward
-sudo iptables -L FORWARD -n | grep flbr0
-
-# Test from inside VM
-ssh -i ~/.ssh/vm_key mooby@10.0.100.2 'curl -s https://api.anthropic.com'
-```
-
-### Can't find VM IP
-
-```bash
-# List all leases
-cat /var/lib/stockyard/data/dnsmasq.leases
-
-# Or ping-scan the subnet
-for i in $(seq 2 10); do ping -c1 -W1 10.0.100.$i 2>/dev/null && echo "10.0.100.$i UP"; done
-```
-
-## Why Not vsock?
+## Why Tailscale?
 
 Firecracker uses virtio-vsock (`/dev/vsock`) for host↔VM communication.
-GCP nested virtualization does not expose `/dev/vsock` to the guest,
-so the Firecracker vsock proxy cannot connect. The `stockyard exec`
-command fails with `read CONNECT response: EOF`.
-
-SSH over the TAP bridge network (`flbr0`) bypasses this limitation entirely.
+GCP nested virtualization does not expose `/dev/vsock`, so Stockyard's
+built-in `exec` command fails. Tailscale provides a direct, encrypted
+SSH path from any device on the tailnet to any VM — bypassing both
+vsock and the need for bridge networking or IAP tunnels.

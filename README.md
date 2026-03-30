@@ -51,10 +51,10 @@ Each agent runs inside a **tmux session** with output logged to `/home/mooby/age
 codingmachines-monitor
 
 # Tail a specific agent's live output
-codingmachines-logs 10.0.100.2 --follow
+codingmachines-logs stockyard-<task-id> --follow
 
 # SSH in and attach to the agent's terminal
-codingmachines-ssh 10.0.100.2
+codingmachines-ssh stockyard-<task-id>
 tmux attach -t agent       # watch live — Ctrl+B, D to detach
 ```
 
@@ -102,7 +102,7 @@ def456    track2b   running  2026-03-30T12:00:02Z
 
 === AGENT STATUS ===
 
---- track2a (abc123) @ 10.0.100.2 ---
+--- track2a (abc123) @ stockyard-<task-id> ---
   Agent: RUNNING (tmux session active)
   Log: 1842 lines (256K)
   Process: claude-code running (01:23:45)
@@ -111,7 +111,7 @@ def456    track2b   running  2026-03-30T12:00:02Z
     Processing 7.2GB file...
     Found 12,847 nephrologists
 
---- track2b (def456) @ 10.0.100.3 ---
+--- track2b (def456) @ stockyard-<task-id-2> ---
   Agent: RUNNING (tmux session active)
   Log: 923 lines (128K)
   Process: claude-code running (01:23:42)
@@ -148,19 +148,11 @@ Each micro-VM gets:
 
 ## SSH Access
 
-VMs are accessed via SSH over the host's bridge network. For full setup
-(key download, SSH config, ProxyJump), see **[SSH_ACCESS.md](SSH_ACCESS.md)**.
+VMs join the Tailscale tailnet at boot. SSH directly from any device on your tailnet — no IAP tunnels or jump hosts needed. See **[SSH_ACCESS.md](SSH_ACCESS.md)** for full setup.
 
-Quick version:
 ```bash
-# From your Mac (two-hop, no SSH config needed)
-codingmachines-ssh 10.0.100.2
-
-# From the host (if already SSH'd in)
-ssh -i ~/.ssh/vm_key mooby@10.0.100.2
+codingmachines-ssh stockyard-<task-id>    # or: ssh mooby@stockyard-<task-id>
 ```
-
-VM IPs start at `10.0.100.2` and increment per VM.
 
 ## Cost
 
