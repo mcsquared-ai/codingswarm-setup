@@ -38,9 +38,12 @@ stockyard-start
 # Spawn a micro-VM
 stockyard run --name "my-task" --no-tailscale
 
-# Run commands inside it
-stockyard exec <task-id> -- git clone https://github.com/mcsquared-ai/my-repo
-stockyard exec <task-id> -- claude-code -p "implement feature X"
+# SSH into a running VM (see SSH_ACCESS.md for full setup)
+ssh -J stockyard-host mooby@10.0.100.2
+
+# Run a command inside a VM via SSH
+gcloud compute ssh stockyard-host --zone=us-central1-a --tunnel-through-iap \
+  --command="ssh mooby@10.0.100.2 'claude-code -p \"implement feature X\"'"
 
 # Launch a coding swarm (parallel agents)
 stockyard-swarm task1.md task2.md task3.md
@@ -73,10 +76,21 @@ Your Laptop (Mac/Win/Linux)
 | Host VM stopped | $0 (auto-stops after 30 min idle) |
 | Typical month (3 devs, 8hr/day) | ~$10-15 |
 
+## SSH Access to VMs
+
+See [SSH_ACCESS.md](SSH_ACCESS.md) for:
+- One-time SSH setup (key + config)
+- Jumping into micro-VMs from your laptop
+- Delivering coding prompts via SSH
+- Why vsock doesn't work on GCP nested virtualization
+
 ## Admin Guide
 
 See [ADMIN_GUIDE.md](ADMIN_GUIDE.md) for:
 - GCP host VM provisioning
 - Stockyard daemon installation
+- SSH key injection into VM rootfs
+- Network bridge + NAT for VM internet
+- Systemd services (auto-start on boot)
 - Secrets management
 - GCP org policy requirements

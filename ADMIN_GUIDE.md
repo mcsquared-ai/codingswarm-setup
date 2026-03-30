@@ -374,12 +374,74 @@ GCP_REGION=us-central1
 SECRETS
 sudo chmod 600 /etc/stockyard/secrets/.env
 
-# Network bridge
+# SSH keys for VM access (since vsock is broken on GCP nested virt)
+sudo mkdir -p /etc/stockyard/ssh
+sudo ssh-keygen -t ed25519 -f /etc/stockyard/ssh/vm_key -N "" -C "stockyard-host-to-vm"
+sudo chmod 600 /etc/stockyard/ssh/vm_key
+sudo chmod 644 /etc/stockyard/ssh/vm_key.pub
+
+# Inject SSH key into rootfs
+sudo mkdir -p /tmp/rootfs-mount
+sudo mount /tank/stockyard/images/rootfs/rootfs.ext4 /tmp/rootfs-mount
+sudo mkdir -p /tmp/rootfs-mount/home/mooby/.ssh
+sudo cp /etc/stockyard/ssh/vm_key.pub /tmp/rootfs-mount/home/mooby/.ssh/authorized_keys
+sudo chown -R 1001:1001 /tmp/rootfs-mount/home/mooby/.ssh
+sudo chmod 700 /tmp/rootfs-mount/home/mooby/.ssh
+sudo chmod 600 /tmp/rootfs-mount/home/mooby/.ssh/authorized_keys
+sudo umount /tmp/rootfs-mount
+sudo zfs destroy tank/stockyard/images/rootfs@base
+sudo zfs snapshot tank/stockyard/images/rootfs@base
+
+# Network bridge + NAT (10.0.100.0/24 subnet)
 sudo ip link add name flbr0 type bridge
-sudo ip addr add 10.0.0.1/24 dev flbr0
+sudo ip addr add 10.0.100.1/24 dev flbr0
 sudo ip link set flbr0 up
-sudo iptables -t nat -A POSTROUTING -o ens4 -j MASQUERADE
 sudo sysctl -w net.ipv4.ip_forward=1
+echo "net.ipv4.ip_forward=1" | sudo tee /etc/sysctl.d/99-ip-forward.conf
+sudo iptables -t nat -A POSTROUTING -s 10.0.100.0/24 -o ens4 -j MASQUERADE
+sudo iptables -A FORWARD -i flbr0 -o ens4 -j ACCEPT
+sudo iptables -A FORWARD -i ens4 -o flbr0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+# Systemd: network (bridge + NAT, survives reboots)
+sudo tee /etc/systemd/system/stockyard-network.service > /dev/null << "NETEOF"
+[Unit]
+Description=Stockyard VM Network (bridge + NAT)
+Before=stockyard.service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "ip link add name flbr0 type bridge 2>/dev/null || true; ip link set flbr0 up; ip addr replace 10.0.100.1/24 dev flbr0; iptables -t nat -C POSTROUTING -s 10.0.100.0/24 -o ens4 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.0.100.0/24 -o ens4 -j MASQUERADE; iptables -C FORWARD -i flbr0 -o ens4 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i flbr0 -o ens4 -j ACCEPT; iptables -C FORWARD -i ens4 -o flbr0 -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || iptables -A FORWARD -i ens4 -o flbr0 -m state --state RELATED,ESTABLISHED -j ACCEPT"
+
+[Install]
+WantedBy=multi-user.target
+NETEOF
+sudo systemctl daemon-reload
+sudo systemctl enable stockyard-network
+
+# Systemd: stockyard daemon
+sudo tee /etc/systemd/system/stockyard.service > /dev/null << "SVCEOF"
+[Unit]
+Description=Stockyard Daemon
+After=network.target zfs-mount.service stockyard-network.service
+Wants=zfs-mount.service
+
+[Service]
+Type=simple
+ExecStartPre=/bin/mkdir -p /var/run/stockyard
+ExecStart=/usr/local/bin/stockyardd --config /etc/stockyard/config.json
+Restart=on-failure
+RestartSec=5
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+sudo systemctl daemon-reload
+sudo systemctl enable stockyard
+sudo systemctl start stockyard
 
 # Idle auto-shutdown (30 min)
 sudo tee /usr/local/bin/stockyard-idle-shutdown.sh > /dev/null << "SCRIPT"
