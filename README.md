@@ -35,40 +35,97 @@ codingmachines-start     # boots GCP Spot VM (~30s)
 codingmachines-status    # verify it's running
 ```
 
-### Step 4: Use it
+### Step 4: Launch a coding swarm
 
 ```bash
-# Spawn a micro-VM
-codingmachines run --name "my-task"
-# List running VMs
-codingmachines list
-
-# SSH into a VM
-codingmachines-ssh 10.0.100.2
-
-# Launch a parallel coding swarm from prompt files
+# Launch parallel agents from prompt files
 codingmachines-swarm prompts/task-a.md prompts/task-b.md prompts/task-c.md
+```
 
-# Stop a VM
-codingmachines stop <task-id>
+Each agent runs inside a **tmux session** with output logged to `/home/mooby/agent.log`.
 
-# Stop the host when done (saves money)
-codingmachines-stop
+### Step 5: Monitor
+
+```bash
+# Dashboard: status of all running agents
+codingmachines-monitor
+
+# Tail a specific agent's live output
+codingmachines-logs 10.0.100.2 --follow
+
+# SSH in and attach to the agent's terminal
+codingmachines-ssh 10.0.100.2
+tmux attach -t agent       # watch live — Ctrl+B, D to detach
+```
+
+### Step 6: Clean up
+
+```bash
+codingmachines stop <task-id>    # stop a VM
+codingmachines-stop              # shut down host to save money
 ```
 
 ## Commands Reference
 
 | Command | What it does |
 |---------|-------------|
-| `codingmachines list` | List all micro-VMs (running + stopped) |
-| `codingmachines run --name <name>` | Spawn a new micro-VM |
-| `codingmachines stop <task-id>` | Stop a VM (workspace preserved) |
-| `codingmachines destroy --force <task-id>` | Delete a VM and its workspace |
-| `codingmachines-start` | Boot the GCP host VM |
-| `codingmachines-stop` | Shut down the GCP host VM |
-| `codingmachines-status` | Check host VM + daemon status |
-| `codingmachines-ssh <vm-ip>` | SSH into a micro-VM |
+| **Launch** | |
+| `codingmachines-start` | Boot the GCP host VM (~30s) |
+| `codingmachines run --name <name>` | Spawn a single micro-VM |
 | `codingmachines-swarm <file1.md> ...` | Launch parallel coding agents |
+| **Monitor** | |
+| `codingmachines-monitor` | Dashboard: status of all agents |
+| `codingmachines-logs <vm-ip> [-f]` | Tail agent output from a VM |
+| `codingmachines-ssh <vm-ip>` | SSH into a VM (then `tmux attach`) |
+| `codingmachines list` | List all micro-VMs (running + stopped) |
+| `codingmachines-status` | Check host VM + daemon health |
+| **Cleanup** | |
+| `codingmachines stop <task-id>` | Stop a VM (workspace preserved) |
+| `codingmachines destroy --force <task-id>` | Delete a VM and its data |
+| `codingmachines-stop` | Shut down the GCP host VM |
+
+## Monitoring Agents
+
+Each agent launched by `codingmachines-swarm` runs inside a **tmux session**
+named `agent` with output logged to `/home/mooby/agent.log`.
+
+**Quick status of all agents:**
+```
+$ codingmachines-monitor
+
+Host VM: RUNNING
+
+=== VM LIST ===
+ID        NAME      STATUS   CREATED
+abc123    track2a   running  2026-03-30T12:00:00Z
+def456    track2b   running  2026-03-30T12:00:02Z
+
+=== AGENT STATUS ===
+
+--- track2a (abc123) @ 10.0.100.2 ---
+  Agent: RUNNING (tmux session active)
+  Log: 1842 lines (256K)
+  Process: claude-code running (01:23:45)
+  Last output:
+    Downloading NPI registry...
+    Processing 7.2GB file...
+    Found 12,847 nephrologists
+
+--- track2b (def456) @ 10.0.100.3 ---
+  Agent: RUNNING (tmux session active)
+  Log: 923 lines (128K)
+  Process: claude-code running (01:23:42)
+  Last output:
+    Fetching Part D data for 2023...
+```
+
+**Three levels of visibility:**
+
+| Level | Command | What you see |
+|-------|---------|-------------|
+| Overview | `codingmachines-monitor` | All agents: status, log size, last 3 lines |
+| Streaming | `codingmachines-logs <ip> -f` | Live log output (like `tail -f`) |
+| Full terminal | `codingmachines-ssh <ip>` then `tmux attach` | Full interactive agent terminal |
 
 ## Architecture
 

@@ -376,27 +376,43 @@ fi
 EOF
     chmod +x "$HOME/.local/bin/codingmachines-ssh"
 
-    # codingmachines-swarm: Run multiple agents via SSH
+    # codingmachines-swarm: Run multiple agents via SSH + tmux
     cat > "$HOME/.local/bin/codingmachines-swarm" << 'SWARMEOF'
 #!/bin/bash
 # Usage: codingmachines-swarm <prompt1.md> [prompt2.md] [prompt3.md] ...
 # Each .md file contains a Claude Code prompt for one micro-VM agent.
+#
+# Each agent runs inside a tmux session named "agent" with output logged
+# to /home/mooby/agent.log. Use codingmachines-monitor to check status.
 set -e
 
 GCP_PROJECT="sales-demos-485118"
 GCP_ZONE="us-central1-a"
 GCP_VM="codingmachines"
+SSH_KEY="~/.ssh/vm_key"
 
 if [ $# -eq 0 ]; then
     echo "Usage: codingmachines-swarm <prompt1.md> [prompt2.md] ..."
+    echo ""
     echo "Each file contains a Claude Code prompt for one micro-VM agent."
+    echo "Agents run in tmux sessions with logs at /home/mooby/agent.log."
+    echo ""
+    echo "After launch:"
+    echo "  codingmachines-monitor           # check all agents"
+    echo "  codingmachines-ssh <vm-ip>       # SSH in, then: tmux attach"
     exit 1
 fi
+
+HOST_CMD() {
+    gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" \
+        --tunnel-through-iap --command="$1" 2>/dev/null
+}
 
 # Collect prompt files and names
 PROMPTS=("$@")
 TASK_IDS=()
 TASK_NAMES=()
+VM_IPS=()
 
 echo "Launching ${#PROMPTS[@]} coding agents..."
 echo ""
@@ -417,52 +433,173 @@ for PROMPT_FILE in "${PROMPTS[@]}"; do
 done
 
 echo ""
-echo "Waiting for VMs to boot and get IPs..."
+echo "Waiting for VMs to boot..."
 sleep 10
 
-# Phase 2: Deliver prompts via SSH through the host
-echo ""
-echo "Delivering prompts via SSH..."
+# Phase 2: Get VM IPs from DHCP leases
+LEASES=$(HOST_CMD "cat /var/lib/stockyard/data/dnsmasq.leases 2>/dev/null")
 
-# Get DHCP leases to map IPs
-LEASES=$(gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --tunnel-through-iap \
-    --command="cat /var/lib/stockyard/data/dnsmasq.leases 2>/dev/null" 2>/dev/null)
+for i in "${!TASK_IDS[@]}"; do
+    TASK_ID="${TASK_IDS[$i]}"
+    [ -z "$TASK_ID" ] && VM_IPS+=("") && continue
+    VM_IP=$(echo "$LEASES" | grep "$TASK_ID" | awk '{print $3}')
+    VM_IPS+=("$VM_IP")
+done
+
+# Phase 3: Copy prompts to host, then deliver to VMs via tmux
+echo ""
+echo "Delivering prompts..."
 
 for i in "${!PROMPTS[@]}"; do
     PROMPT_FILE="${PROMPTS[$i]}"
     TASK_ID="${TASK_IDS[$i]}"
     NAME="${TASK_NAMES[$i]}"
+    VM_IP="${VM_IPS[$i]}"
 
-    [ -z "$TASK_ID" ] && continue
+    [ -z "$TASK_ID" ] || [ -z "$VM_IP" ] && echo "  $NAME: skipped (no IP)" && continue
 
-    # Find VM IP from DHCP leases (hostname = stockyard-<task-id>)
-    VM_IP=$(echo "$LEASES" | grep "$TASK_ID" | awk '{print $3}')
-    if [ -z "$VM_IP" ]; then
-        echo "  $NAME ($TASK_ID): no IP found, skipping"
-        continue
-    fi
+    echo "  $NAME ($TASK_ID) @ $VM_IP"
 
-    echo "  $NAME ($TASK_ID) @ $VM_IP: delivering prompt..."
+    # Copy prompt file to host, then into VM
+    gcloud compute scp "$PROMPT_FILE" "$GCP_VM:/tmp/prompt-${TASK_ID}.md" \
+        --zone="$GCP_ZONE" --project="$GCP_PROJECT" --tunnel-through-iap 2>/dev/null
 
-    # Read prompt content
-    PROMPT_CONTENT=$(cat "$PROMPT_FILE")
+    # SSH into VM: create tmux session, run claude-code with logging
+    HOST_CMD "
+        # Copy prompt into VM
+        scp -o StrictHostKeyChecking=no -i $SSH_KEY /tmp/prompt-${TASK_ID}.md mooby@${VM_IP}:/home/mooby/prompt.md
 
-    # Deliver via SSH through IAP tunnel (background)
-    gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --tunnel-through-iap \
-        --command="ssh -o StrictHostKeyChecking=no -i ~/.ssh/vm_key mooby@$VM_IP 'cd /home/mooby && claude-code -p \"$(echo "$PROMPT_CONTENT" | sed 's/"/\\"/g')\"'" \
-        2>/dev/null &
-
-    echo "  $NAME: agent started (background)"
+        # Start agent in tmux with logging
+        ssh -o StrictHostKeyChecking=no -i $SSH_KEY mooby@${VM_IP} '
+            tmux new-session -d -s agent \"bash -c \\\"claude-code -p \\\\\\\"\\\$(cat /home/mooby/prompt.md)\\\\\\\" 2>&1 | tee /home/mooby/agent.log; echo AGENT_EXIT_CODE=\\\\\\\$? >> /home/mooby/agent.log\\\"\"
+        '
+    "
+    echo "    started in tmux session 'agent'"
 done
 
 echo ""
 echo "Swarm launched: ${#TASK_IDS[@]} agents"
 echo ""
-echo "Monitor:  codingmachines list"
-echo "SSH in:   codingmachines-ssh <vm-ip>"
-echo "Status:   codingmachines-status"
+echo "  codingmachines-monitor            # check agent status"
+echo "  codingmachines-ssh <vm-ip>        # SSH in, then: tmux attach"
+echo "  codingmachines list               # VM lifecycle status"
 SWARMEOF
     chmod +x "$HOME/.local/bin/codingmachines-swarm"
+
+    # codingmachines-monitor: Check status of all running agents
+    cat > "$HOME/.local/bin/codingmachines-monitor" << 'MONEOF'
+#!/bin/bash
+# Shows status of all running CodingMachines micro-VMs and their agents.
+GCP_PROJECT="sales-demos-485118"
+GCP_ZONE="us-central1-a"
+GCP_VM="codingmachines"
+SSH_KEY="~/.ssh/vm_key"
+
+# Check host is reachable
+HOST_STATUS=$(gcloud compute instances describe "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --format='value(status)' 2>/dev/null)
+if [ "$HOST_STATUS" != "RUNNING" ]; then
+    echo "Host VM: $HOST_STATUS"
+    echo "Run codingmachines-start to boot it."
+    exit 1
+fi
+
+echo "Host VM: RUNNING"
+echo ""
+
+# Get VM list and DHCP leases in one SSH call
+RESULT=$(gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --tunnel-through-iap --command='
+SSH_KEY=~/.ssh/vm_key
+
+echo "=== VM LIST ==="
+stockyard list 2>/dev/null
+
+echo ""
+echo "=== AGENT STATUS ==="
+
+# Get running VMs
+LEASES=$(cat /var/lib/stockyard/data/dnsmasq.leases 2>/dev/null)
+RUNNING_IPS=$(stockyard list 2>/dev/null | grep running | while read ID NAME STATUS REST; do
+    IP=$(echo "$LEASES" | grep "$ID" | awk "{print \$3}")
+    [ -n "$IP" ] && echo "$ID $NAME $IP"
+done)
+
+if [ -z "$RUNNING_IPS" ]; then
+    echo "No running VMs with IPs found."
+    exit 0
+fi
+
+echo "$RUNNING_IPS" | while read TASK_ID NAME VM_IP; do
+    echo ""
+    echo "--- $NAME ($TASK_ID) @ $VM_IP ---"
+
+    # Check if VM is reachable
+    if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=3 -o BatchMode=yes -i $SSH_KEY mooby@$VM_IP true 2>/dev/null; then
+        echo "  SSH: unreachable"
+        continue
+    fi
+
+    # Check tmux session and agent status
+    ssh -o StrictHostKeyChecking=no -o ConnectTimeout=3 -i $SSH_KEY mooby@$VM_IP bash 2>/dev/null <<VMCHECK
+        # Is tmux agent session running?
+        if tmux has-session -t agent 2>/dev/null; then
+            echo "  Agent: RUNNING (tmux session active)"
+        else
+            echo "  Agent: NOT RUNNING (no tmux session)"
+        fi
+
+        # Check log file
+        if [ -f /home/mooby/agent.log ]; then
+            LINES=\$(wc -l < /home/mooby/agent.log)
+            SIZE=\$(du -h /home/mooby/agent.log | awk "{print \\\$1}")
+            echo "  Log: \$LINES lines (\$SIZE)"
+
+            # Check if agent exited
+            if grep -q "AGENT_EXIT_CODE=" /home/mooby/agent.log 2>/dev/null; then
+                EXIT_CODE=\$(grep "AGENT_EXIT_CODE=" /home/mooby/agent.log | tail -1 | cut -d= -f2)
+                echo "  Result: COMPLETED (exit code \$EXIT_CODE)"
+            fi
+
+            # Show last 3 lines
+            echo "  Last output:"
+            tail -3 /home/mooby/agent.log | sed "s/^/    /"
+        else
+            echo "  Log: no agent.log yet"
+        fi
+
+        # Process check
+        if pgrep -f "claude-code" >/dev/null 2>&1; then
+            RUNTIME=\$(ps -o etime= -p \$(pgrep -f "claude-code" | head -1) 2>/dev/null | xargs)
+            echo "  Process: claude-code running (\$RUNTIME)"
+        fi
+VMCHECK
+done
+' 2>/dev/null)
+
+echo "$RESULT"
+MONEOF
+    chmod +x "$HOME/.local/bin/codingmachines-monitor"
+
+    # codingmachines-logs: Tail agent logs from a specific VM
+    cat > "$HOME/.local/bin/codingmachines-logs" << 'LOGEOF'
+#!/bin/bash
+# Usage: codingmachines-logs <vm-ip> [--follow]
+# Tails the agent log from a micro-VM.
+GCP_PROJECT="sales-demos-485118"
+GCP_ZONE="us-central1-a"
+GCP_VM="codingmachines"
+VM_IP="${1:?Usage: codingmachines-logs <vm-ip> [--follow]}"
+FOLLOW="${2:-}"
+
+if [ "$FOLLOW" = "--follow" ] || [ "$FOLLOW" = "-f" ]; then
+    TAIL_CMD="tail -f /home/mooby/agent.log"
+else
+    TAIL_CMD="tail -50 /home/mooby/agent.log"
+fi
+
+gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --tunnel-through-iap \
+    --command="ssh -o StrictHostKeyChecking=no -i ~/.ssh/vm_key mooby@$VM_IP '$TAIL_CMD'" 2>/dev/null
+LOGEOF
+    chmod +x "$HOME/.local/bin/codingmachines-logs"
 
     log "Helper scripts created:"
     echo "  codingmachines              — CLI (list, run, stop, etc.)"
@@ -471,6 +608,8 @@ SWARMEOF
     echo "  codingmachines-status       — Check host VM + daemon status"
     echo "  codingmachines-ssh <ip>     — SSH into a micro-VM"
     echo "  codingmachines-swarm        — Launch parallel coding agents"
+    echo "  codingmachines-monitor      — Check status of all agents"
+    echo "  codingmachines-logs <ip>    — Tail agent log from a VM"
 }
 
 # ── Summary ──────────────────────────────────────────────────────────
@@ -487,12 +626,13 @@ print_summary() {
     echo "  Config:       $HOME/.codingmachines/env.sh"
     echo ""
     echo -e "  ${GREEN}Quick Start:${NC}"
-    echo "    codingmachines-status              # Check if host is running"
     echo "    codingmachines-start               # Start host VM if stopped"
-    echo "    codingmachines list                # List running micro-VMs"
-    echo "    codingmachines run --name my-task  # Spawn a micro-VM"
-    echo "    codingmachines-ssh 10.0.100.2      # SSH into a VM"
     echo "    codingmachines-swarm a.md b.md     # Launch coding swarm"
+    echo "    codingmachines-monitor             # Check all agent status"
+    echo "    codingmachines-logs 10.0.100.2 -f  # Tail agent output"
+    echo "    codingmachines-ssh 10.0.100.2      # SSH into a VM"
+    echo "    codingmachines list                # List micro-VMs"
+    echo "    codingmachines-stop                # Stop host (saves money)"
     echo ""
     echo -e "  ${YELLOW}Note: Open a new terminal for PATH changes to take effect${NC}"
     echo ""
