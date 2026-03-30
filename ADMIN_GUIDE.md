@@ -68,7 +68,7 @@ gcloud config set project sales-demos-485118
 
 ## Step 2: Start the Host VM (if stopped)
 
-The Stockyard host auto-stops after 30 minutes idle. To restart:
+The CodingMachines host auto-stops after 30 minutes idle. To restart:
 
 ```bash
 # Check status
@@ -461,8 +461,6 @@ SCRIPT
 sudo chmod +x /usr/local/bin/stockyard-idle-shutdown.sh
 echo "*/5 * * * * root /usr/local/bin/stockyard-idle-shutdown.sh" | sudo tee /etc/cron.d/stockyard-idle
 
-# Start daemon
-sudo nohup stockyardd > /var/log/stockyardd.log 2>&1 &
 '
 ```
 

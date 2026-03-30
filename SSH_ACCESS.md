@@ -56,10 +56,9 @@ Host vm-*
 
 ```bash
 # SSH into a VM at 10.0.100.2
-CLOUDSDK_ACTIVE_CONFIG_NAME=default \
 gcloud compute ssh codingmachines \
   --project=sales-demos-485118 --zone=us-central1-a --tunnel-through-iap \
-  -- -t ssh -i ~/.ssh/stockyard_vm_key mooby@10.0.100.2
+  -- -t ssh -i ~/.ssh/codingmachines_vm_key mooby@10.0.100.2
 ```
 
 ### With SSH config (after setup above)
@@ -127,9 +126,9 @@ PROMPT
 
 ```bash
 # Launch 3 VMs
-ID1=$(stockyard run --name track2a --no-tailscale 2>&1 | grep 'Task created' | awk '{print $3}')
-ID2=$(stockyard run --name track2b --no-tailscale 2>&1 | grep 'Task created' | awk '{print $3}')
-ID3=$(stockyard run --name track3a --no-tailscale 2>&1 | grep 'Task created' | awk '{print $3}')
+ID1=$(codingmachines run --name track2a --no-tailscale 2>&1 | grep 'Task created' | awk '{print $3}')
+ID2=$(codingmachines run --name track2b --no-tailscale 2>&1 | grep 'Task created' | awk '{print $3}')
+ID3=$(codingmachines run --name track3a --no-tailscale 2>&1 | grep 'Task created' | awk '{print $3}')
 
 sleep 10  # wait for DHCP
 

@@ -1,73 +1,110 @@
-# mcsquared.ai Developer Setup
+# CodingMachines — mcsquared.ai Coding Agent Swarm
 
-One-command setup for developer workstations + CodingMachines coding agent swarm.
+One-command setup for developer workstations. Gives you a fleet of isolated
+micro-VMs running Claude Code agents in parallel on shared GCP infrastructure.
 
-## Quick Start
+## Developer Quickstart
 
-### macOS / Linux
+### Step 1: Install (one-time)
+
+**macOS / Linux:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/setup.sh | bash
 ```
 
-### Windows (PowerShell as Admin)
+**Windows (PowerShell as Admin):**
 ```powershell
 irm https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/setup.ps1 | iex
 ```
 
-## What It Does
+This installs dev tools, builds the CLI, and configures your connection to
+`codingmachines.mcsquared.cloud`. Open a **new terminal** when done.
 
-1. **Detects your platform** (macOS arm64/amd64, Linux x86_64, Windows WSL2)
-2. **Installs dev tools**: git, go, gcloud, gh, python, uv, node
-3. **Builds CodingMachines CLI** for your OS/architecture
-4. **Configures connection** to `codingmachines.mcsquared.cloud`
-5. **Creates helper commands**:
-   - `codingmachines` — CLI (list, run, stop VMs)
-   - `codingmachines-start` — boot the host VM
-   - `codingmachines-stop` — stop to save money
-   - `codingmachines-status` — check host + daemon
-   - `codingmachines-ssh` — SSH into a micro-VM
-   - `codingmachines-swarm` — launch parallel coding agents
-
-## Usage
+### Step 2: Authenticate (one-time)
 
 ```bash
-# Check host VM status
-codingmachines-status
+gcloud auth login                              # GCP access
+gcloud config set project sales-demos-485118   # set project
+gh auth login                                  # GitHub access
+```
 
-# Start host VM if stopped (~30s boot)
-codingmachines-start
+### Step 3: Start the host
 
+```bash
+codingmachines-start     # boots GCP Spot VM (~30s)
+codingmachines-status    # verify it's running
+```
+
+### Step 4: Use it
+
+```bash
 # Spawn a micro-VM
 codingmachines run --name "my-task" --no-tailscale
 
-# SSH into a running VM (see SSH_ACCESS.md for full setup)
+# List running VMs
+codingmachines list
+
+# SSH into a VM
 codingmachines-ssh 10.0.100.2
 
-# Run a command inside a VM via SSH
-codingmachines-ssh 10.0.100.2  # then run commands interactively
+# Launch a parallel coding swarm from prompt files
+codingmachines-swarm prompts/task-a.md prompts/task-b.md prompts/task-c.md
 
-# Launch a coding swarm (parallel agents)
-codingmachines-swarm task1.md task2.md task3.md
-
-# Stop when done
+# Stop a VM
 codingmachines stop <task-id>
 
-# List all tasks
-codingmachines list
+# Stop the host when done (saves money)
+codingmachines-stop
 ```
+
+## Commands Reference
+
+| Command | What it does |
+|---------|-------------|
+| `codingmachines list` | List all micro-VMs (running + stopped) |
+| `codingmachines run --name <name> --no-tailscale` | Spawn a new micro-VM |
+| `codingmachines stop <task-id>` | Stop a VM (workspace preserved) |
+| `codingmachines destroy --force <task-id>` | Delete a VM and its workspace |
+| `codingmachines-start` | Boot the GCP host VM |
+| `codingmachines-stop` | Shut down the GCP host VM |
+| `codingmachines-status` | Check host VM + daemon status |
+| `codingmachines-ssh <vm-ip>` | SSH into a micro-VM |
+| `codingmachines-swarm <file1.md> ...` | Launch parallel coding agents |
 
 ## Architecture
 
 ```
 Your Laptop (Mac/Win/Linux)
-  └── codingmachines CLI (wraps Stockyard)
+  └── codingmachines CLI
        └── gRPC → codingmachines.mcsquared.cloud:65433
             └── GCP Spot VM ($0.05/hr, auto-stops after 30min idle)
-                 └── Firecracker micro-VMs (6s boot, ZFS CoW clones)
-                      ├── Agent 1: working on project A
-                      ├── Agent 2: working on project B
-                      └── Agent 3: working on project C
+                 └── Firecracker micro-VMs (6s boot, ZFS copy-on-write)
+                      ├── Agent 1: claude-code working on task A
+                      ├── Agent 2: claude-code working on task B
+                      └── Agent 3: claude-code working on task C
 ```
+
+Each micro-VM gets:
+- 2 CPU cores, 4GB RAM (configurable with `--cpus` / `--memory`)
+- Full internet access (NAT through host)
+- Secrets injected at boot (Anthropic API key, GitHub token, etc.)
+- Isolated filesystem (ZFS snapshot for audit trail)
+
+## SSH Access
+
+VMs are accessed via SSH over the host's bridge network. For full setup
+(key download, SSH config, ProxyJump), see **[SSH_ACCESS.md](SSH_ACCESS.md)**.
+
+Quick version:
+```bash
+# From your Mac (two-hop, no SSH config needed)
+codingmachines-ssh 10.0.100.2
+
+# From the host (if already SSH'd in)
+ssh -i ~/.ssh/vm_key mooby@10.0.100.2
+```
+
+VM IPs start at `10.0.100.2` and increment per VM.
 
 ## Cost
 
@@ -75,31 +112,27 @@ Your Laptop (Mac/Win/Linux)
 |------|------|
 | Host VM running | ~$0.05/hr |
 | Host VM stopped | $0 (auto-stops after 30 min idle) |
-| Typical month (3 devs, 8hr/day) | ~$10-15 |
+| Static IP (while VM stopped) | ~$0.01/hr |
+| 200GB disk | ~$20/month |
+| **Typical month (3 devs, 8hr/day)** | **~$10-15** |
 
-## SSH Access to VMs
+## Troubleshooting
 
-See [SSH_ACCESS.md](SSH_ACCESS.md) for:
-- One-time SSH setup (key + config)
-- Jumping into micro-VMs from your laptop
-- Delivering coding prompts via SSH
-- Why vsock doesn't work on GCP nested virtualization
+| Problem | Fix |
+|---------|-----|
+| `connection refused` on port 65433 | Host VM is stopped. Run `codingmachines-start` |
+| `dial unix .../stockyard.sock` error | `CODINGMACHINES_URL` not set. Open a new terminal or run `source ~/.codingmachines/env.sh` |
+| DNS not resolving | Run `dig codingmachines.mcsquared.cloud +short` — should show `34.121.124.99` |
+| SSH `Permission denied` | Download the VM key first. See [SSH_ACCESS.md](SSH_ACCESS.md) |
+| Host VM won't start | GCP Spot capacity exhausted. Wait a few minutes and retry |
 
-## Admin Guide
+## More Docs
 
-See [ADMIN_GUIDE.md](ADMIN_GUIDE.md) for:
-- GCP host VM provisioning
-- Stockyard daemon installation
-- SSH key injection into VM rootfs
-- Network bridge + NAT for VM internet
-- Systemd services (auto-start on boot)
-- Secrets management
-- DNS setup (codingmachines.mcsquared.cloud)
-- GCP org policy requirements
+- **[SSH_ACCESS.md](SSH_ACCESS.md)** — SSH setup, jumping into VMs, delivering prompts
+- **[ADMIN_GUIDE.md](ADMIN_GUIDE.md)** — Host provisioning, secrets, DNS, scaling to multiple hosts
 
 ## Naming
 
-**CodingMachines** is the mcsquared.ai branded name for the coding agent
-swarm infrastructure. Under the hood it wraps
+**CodingMachines** is the mcsquared.ai branded wrapper around
 [Stockyard](https://github.com/prime-radiant-inc/stockyard), a Firecracker
-micro-VM orchestrator by Prime Radiant Inc (used under its published terms).
+micro-VM orchestrator by Prime Radiant Inc.
