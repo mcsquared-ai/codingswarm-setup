@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clean Dev Environment Guide — Claude Code & Enterprise AI Systems</title>
+<style>
+  :root {
+    --brand: #1a56a0;
+    --brand-light: #e8f0fb;
+    --accent: #f0a500;
+    --danger: #c0392b;
+    --success: #27ae60;
+    --warn: #e67e22;
+    --bg: #f8f9fa;
+    --card: #ffffff;
+    --border: #dee2e6;
+    --text: #212529;
+    --muted: #6c757d;
+    --code-bg: #1e1e2e;
+    --code-text: #cdd6f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+         background: var(--bg); color: var(--text); line-height: 1.65; }
+
+  /* Layout */
+  .sidebar { position: fixed; top: 0; left: 0; width: 260px; height: 100vh;
+             background: #0d1b2a; color: #c9d1d9; overflow-y: auto; padding: 24px 0; z-index: 100; }
+  .main { margin-left: 260px; padding: 40px 48px; max-width: 960px; }
+
+  /* Sidebar */
+  .sidebar-title { font-size: 13px; font-weight: 700; color: var(--accent);
+                   text-transform: uppercase; letter-spacing: 1px; padding: 0 20px 16px; }
+  .sidebar nav a { display: block; padding: 7px 20px; font-size: 13px; color: #8b949e;
+                   text-decoration: none; border-left: 3px solid transparent; transition: all .2s; }
+  .sidebar nav a:hover, .sidebar nav a.active { color: #fff; border-left-color: var(--accent);
+                                                  background: rgba(255,255,255,.05); }
+  .sidebar nav .section-head { font-size: 11px; font-weight: 700; color: #58a6ff;
+                                 text-transform: uppercase; padding: 16px 20px 4px; letter-spacing: .8px; }
+
+  /* Headers */
+  h1 { font-size: 2rem; font-weight: 800; color: var(--brand); margin-bottom: 8px; }
+  h2 { font-size: 1.4rem; font-weight: 700; color: var(--brand); margin: 40px 0 16px;
+       padding-bottom: 8px; border-bottom: 2px solid var(--brand-light); }
+  h3 { font-size: 1.1rem; font-weight: 700; color: #2c3e50; margin: 24px 0 10px; }
+  h4 { font-size: .95rem; font-weight: 700; color: var(--muted); margin: 16px 0 8px;
+       text-transform: uppercase; letter-spacing: .5px; }
+  p { margin-bottom: 12px; }
+
+  /* Code */
+  pre { background: var(--code-bg); color: var(--code-text); border-radius: 8px;
+        padding: 20px 24px; overflow-x: auto; margin: 12px 0 20px; font-size: 13px;
+        line-height: 1.7; border: 1px solid #313244; }
+  code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; }
+  p code, li code { background: #e8ecf0; color: #c0392b; padding: 2px 6px;
+                     border-radius: 3px; font-size: 88%; }
+  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+  .comment { color: #6272a4; }
+  .cmd { color: #50fa7b; }
+  .str { color: #f1fa8c; }
+  .kw { color: #ff79c6; }
+  .var { color: #bd93f9; }
+
+  /* Cards & callouts */
+  .card { background: var(--card); border-radius: 10px; border: 1px solid var(--border);
+          padding: 24px 28px; margin: 16px 0; }
+  .callout { border-radius: 8px; padding: 16px 20px; margin: 16px 0;
+             border-left: 4px solid; font-size: .93rem; }
+  .callout.danger { background: #fdf2f2; border-color: var(--danger); }
+  .callout.warn   { background: #fef9ec; border-color: var(--warn); }
+  .callout.success{ background: #edfaf3; border-color: var(--success); }
+  .callout.info   { background: var(--brand-light); border-color: var(--brand); }
+  .callout-title  { font-weight: 700; margin-bottom: 4px; }
+  .callout.danger .callout-title  { color: var(--danger); }
+  .callout.warn   .callout-title  { color: var(--warn); }
+  .callout.success .callout-title { color: var(--success); }
+  .callout.info   .callout-title  { color: var(--brand); }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: .9rem; }
+  th { background: var(--brand); color: #fff; padding: 10px 14px; text-align: left; font-size: .85rem; }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: var(--brand-light); }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px;
+           font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+  .badge-req  { background: #fee2e2; color: #991b1b; }
+  .badge-rec  { background: #dcfce7; color: #166534; }
+  .badge-opt  { background: #fef3c7; color: #92400e; }
+
+  /* Grid */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .grid2 .card { margin: 0; }
+
+  /* Checklist */
+  .checklist { list-style: none; padding: 0; }
+  .checklist li { padding: 6px 0 6px 28px; position: relative; border-bottom: 1px solid #f0f0f0; }
+  .checklist li:before { content: '☐'; position: absolute; left: 4px; color: var(--muted); }
+  .checklist li.done:before { content: '✓'; color: var(--success); }
+
+  /* Pills */
+  .stack-pill { display: inline-block; background: var(--brand-light); color: var(--brand);
+                border-radius: 4px; padding: 3px 10px; font-size: 12px; font-weight: 600;
+                margin: 2px; border: 1px solid #c2d8f5; }
+
+  /* Section anchor helper */
+  section { scroll-margin-top: 20px; }
+
+  /* Print */
+  @media print { .sidebar { display: none; } .main { margin: 0; padding: 24px; } }
+  @media (max-width: 900px) { .sidebar { display: none; } .main { margin: 0; padding: 24px; }
+                               .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-title">Dev Environment Guide</div>
+  <nav>
+    <div class="section-head">Overview</div>
+    <a href="#executive-summary">Executive Summary</a>
+    <a href="#stack-overview">Recommended Stack</a>
+    <a href="#anti-patterns">Anti-Patterns to Avoid</a>
+
+    <div class="section-head">Foundation</div>
+    <a href="#shell">Shell &amp; Terminal</a>
+    <a href="#directory">Directory Structure</a>
+    <a href="#homebrew">Homebrew</a>
+
+    <div class="section-head">Runtimes</div>
+    <a href="#python">Python (pyenv + venv)</a>
+    <a href="#node">Node.js (nvm)</a>
+
+    <div class="section-head">Cloud &amp; Data</div>
+    <a href="#gcp">GCP (gcloud)</a>
+    <a href="#aws">AWS CLI</a>
+    <a href="#azure">Azure CLI</a>
+    <a href="#data-platforms">Data Platforms</a>
+    <a href="#docker">Docker</a>
+
+    <div class="section-head">Hygiene</div>
+    <a href="#git">Git Configuration</a>
+    <a href="#secrets">Secrets &amp; .env</a>
+    <a href="#claude-code">Claude Code Config</a>
+
+    <div class="section-head">Scripts</div>
+    <a href="#preflight">Pre-flight Checklist</a>
+    <a href="#files">Delivered Files</a>
+  </nav>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+<!-- ═══════════════════════════════════════ HEADER ══════════════════════════════════════ -->
+<section id="executive-summary">
+<h1>Clean Dev Environment Guide</h1>
+<p style="color:var(--muted); font-size:.95rem; margin-bottom:24px;">
+  For Claude Code · GCP Sandbox · Enterprise AI Systems of Action<br>
+  Prepared for: Pankaj Shroff, mcsquared.ai · March 2026
+</p>
+
+<div class="callout info">
+  <div class="callout-title">ℹ️ Audit Scope Note</div>
+  This guide was produced after inspecting your setup context and running diagnostic tooling.
+  For a live audit of your current Mac state (to catch existing conflicts before you install),
+  open Cowork, click <strong>Select Folder</strong> and point it at your home directory (<code>~</code>),
+  then ask to re-run the audit. Everything below is correct practice regardless of current state —
+  apply it as a migration or a fresh start.
+</div>
+
+<p>The goal is a <strong>single source of truth for every runtime, binary, and dependency</strong> on your machine — one tool manages Python versions, one manages Node versions, one manages system binaries, cloud CLIs use official installers, and every project carries its own isolated environment. No global pip installs. No Homebrew Python used as project Python. No competing PATH entries.</p>
+
+<p>Your use case — building intelligent systems of action that are portable across GCP, AWS, and Azure, and that connect to enterprise Systems of Record (Snowflake, Databricks, BigQuery, Palantir Foundry, Oracle) — means your local environment also needs to be your <em>integration test harness</em>. Getting this right upfront is the difference between compounding productivity and compounding tech debt.</p>
+</section>
+
+<!-- ═══════════════════════════════════════ STACK ══════════════════════════════════════ -->
+<section id="stack-overview">
+<h2>Recommended Stack at a Glance</h2>
+
+<table>
+  <tr><th>Layer</th><th>Tool</th><th>Why This One</th><th>Priority</th></tr>
+  <tr><td>Shell</td><td>zsh + Starship prompt</td><td>Default on macOS 10.15+, Starship is fast, shows venv/git/cloud context</td><td><span class="badge badge-req">Required</span></td></tr>
+  <tr><td>Terminal</td><td>iTerm2 or Warp</td><td>Split panes, profiles, GPU-rendered; Warp has AI-assisted commands</td><td><span class="badge badge-rec">Recommended</span></td></tr>
+  <tr><td>Package Mgr</td><td>Homebrew (macOS)</td><td>System-level binaries only — CLIs, compilers, dev tools. NOT runtimes.</td><td><span class="badge badge-req">Required</span></td></tr>
+  <tr><td>Python</td><td>pyenv → venv</td><td>Pin exact Python versions per project; isolation without conda complexity</td><td><span class="badge badge-req">Required</span></td></tr>
+  <tr><td>Node.js</td><td>nvm → .nvmrc</td><td>Multiple LTS versions, per-project pin; avoids Homebrew node conflicts</td><td><span class="badge badge-req">Required</span></td></tr>
+  <tr><td>GCP</td><td>Official gcloud SDK installer</td><td>Self-updates, manages auth, ADC (Application Default Credentials)</td><td><span class="badge badge-req">Required</span></td></tr>
+  <tr><td>AWS</td><td>Official AWS CLI v2 installer</td><td>Official binary, no Python version dependency</td><td><span class="badge badge-rec">Recommended</span></td></tr>
+  <tr><td>Azure</td><td>Official az installer</td><td>Same reasoning — official installer, independent of system Python</td><td><span class="badge badge-opt">Optional</span></td></tr>
+  <tr><td>Containers</td><td>Docker Desktop</td><td>Consistent build environments for testing; works with GCP Cloud Run</td><td><span class="badge badge-req">Required</span></td></tr>
+  <tr><td>Secrets</td><td>direnv + .env pattern</td><td>Directory-scoped env vars; never hardcoded, never committed</td><td><span class="badge badge-req">Required</span></td></tr>
+  <tr><td>IaC</td><td>Terraform or Pulumi</td><td>Portable across GCP/AWS/Azure; Pulumi supports Python if preferred</td><td><span class="badge badge-rec">Recommended</span></td></tr>
+  <tr><td>Version Control</td><td>git + gh CLI</td><td>gh CLI enables PR workflows, GitHub Actions triggers from terminal</td><td><span class="badge badge-req">Required</span></td></tr>
+  <tr><td>Linting/Format</td><td>ruff (Python), prettier (JS)</td><td>ruff replaces flake8+black+isort in one fast binary</td><td><span class="badge badge-rec">Recommended</span></td></tr>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════ ANTI-PATTERNS ══════════════════════════════════════ -->
+<section id="anti-patterns">
+<h2>Anti-Patterns That Will Break You</h2>
+
+<div class="grid2">
+  <div class="callout danger" style="margin:0;">
+    <div class="callout-title">❌ Never Do These</div>
+    <ul style="margin-left:18px; margin-top:8px;">
+      <li><code>pip install pandas</code> without an active venv</li>
+      <li><code>brew install python</code> then using it as project Python</li>
+      <li>Mixing conda environments with pip/venv</li>
+      <li>Hardcoded credentials or API keys in code</li>
+      <li>Committing <code>.env</code> files (even "empty" ones)</li>
+      <li>Global Node packages that should be project deps</li>
+      <li>Multiple <code>pyenv</code> <em>and</em> <code>asdf</code> both active</li>
+      <li>Installing CLI tools via <code>pip install --user</code></li>
+      <li>Dev/beta versions of libraries in production paths</li>
+    </ul>
+  </div>
+  <div class="callout success" style="margin:0;">
+    <div class="callout-title">✅ Always Do These</div>
+    <ul style="margin-left:18px; margin-top:8px;">
+      <li>One Python version manager (pyenv), zero exceptions</li>
+      <li>One venv per project in a consistent location</li>
+      <li><code>.python-version</code> file in every project root</li>
+      <li><code>.nvmrc</code> file in every project root</li>
+      <li><code>.env.example</code> committed; <code>.env</code> gitignored</li>
+      <li>Pin library versions: <code>requirements.lock</code> or <code>uv.lock</code></li>
+      <li>ADC (Application Default Credentials) for GCP auth</li>
+      <li>Test with GCP sandbox before any client deployment</li>
+      <li><code>CLAUDE.md</code> in every project for Claude Code context</li>
+    </ul>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════ SHELL ══════════════════════════════════════ -->
+<section id="shell">
+<h2>1 · Shell &amp; Terminal Setup</h2>
+
+<h3>Install iTerm2 + Starship</h3>
+<pre><code><span class="comment"># iTerm2 — better terminal</span>
+brew install --cask iterm2
+
+<span class="comment"># Starship prompt — fast, context-aware, shows venv/git/gcloud/python versions</span>
+brew install starship
+
+<span class="comment"># Add to end of ~/.zshrc:</span>
+<span class="cmd">eval "$(starship init zsh)"</span>
+</code></pre>
+
+<h3>Starship config (~/.config/starship.toml)</h3>
+<p>This config shows: directory, git branch, Python venv, Python version, GCP project, Node version, and exit codes — everything you need at a glance.</p>
+<pre><code><span class="comment"># ~/.config/starship.toml</span>
+<span class="comment"># Shows: dir · git · python venv · python version · gcp project · node · status</span>
+
+format = """
+[$directory](bold blue)\
+$git_branch\
+$git_status\
+$python\
+$gcloud\
+$nodejs\
+$cmd_duration\
+$line_break\
+$character"""
+
+[directory]
+truncation_length = 4
+truncate_to_repo = true
+
+[python]
+format = '[(\($virtualenv\) )](italic #f5a623)[${symbol}${pyenv_prefix}(${version})]($style) '
+symbol = "🐍 "
+detect_files = ["pyproject.toml", "requirements.txt", ".python-version", "setup.py"]
+
+[gcloud]
+format = '[$symbol$account(@$domain)(\($region\))]($style) '
+style = "bold blue"
+symbol = "☁️  "
+
+[git_branch]
+format = '[$symbol$branch]($style) '
+style = "bold purple"
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+</code></pre>
+
+<h3>Key iTerm2 Profile Settings</h3>
+<div class="card">
+  <p><strong>Preferences → Profiles → General:</strong> Set working directory to "Reuse previous session's directory"</p>
+  <p><strong>Preferences → Profiles → Colors:</strong> Use Catppuccin Mocha or Dracula (avoid default white, reduces eye strain for long sessions)</p>
+  <p><strong>Preferences → Profiles → Keys:</strong> Enable natural text editing (Option+← to jump words)</p>
+  <p><strong>Preferences → General → Magic:</strong> Enable Shell Integration — this gives you badge showing active venv name</p>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════ DIRECTORY ══════════════════════════════════════ -->
+<section id="directory">
+<h2>2 · Directory Structure</h2>
+
+<p>Every project, tool, and environment lives in a predictable location. This is the structure Claude Code and your shell config will assume.</p>
+
+<pre><code>~/
+├── .config/                    <span class="comment"># XDG Base Directory (starship, gcloud, etc.)</span>
+│   ├── starship.toml
+│   └── gcloud/
+├── .ssh/                       <span class="comment"># SSH keys — one per service</span>
+│   ├── id_ed25519_github
+│   ├── id_ed25519_gcp
+│   └── config
+├── .envs/                      <span class="comment"># Shared/reusable venvs for CLI tools (NOT projects)</span>
+│   ├── gcp-tools/              <span class="comment"># gcloud helpers, bigquery tools</span>
+│   ├── data-tools/             <span class="comment"># dbt, snowflake, databricks CLIs</span>
+│   ├── devops/                 <span class="comment"># terraform, ansible helpers</span>
+│   └── mlops/                  <span class="comment"># mlflow, wandb, monitoring tools</span>
+│
+└── dev/                        <span class="comment"># ALL code lives here</span>
+    ├── _templates/             <span class="comment"># Project scaffolding templates</span>
+    │   ├── python-service/
+    │   ├── data-pipeline/
+    │   └── ai-agent/
+    ├── internal/               <span class="comment"># mcsquared.ai internal products</span>
+    │   ├── intelligent-action-platform/
+    │   └── [other-products]/
+    ├── sandbox/                <span class="comment"># GCP sandbox experiments — disposable</span>
+    │   ├── 2026-03-bigquery-poc/
+    │   └── 2026-03-agent-eval/
+    └── clients/                <span class="comment"># One subdirectory per client</span>
+        └── [client-name]/
+            └── [project-name]/
+</code></pre>
+
+<div class="callout info">
+  <div class="callout-title">📁 The .envs/ pattern</div>
+  CLI tools like <code>dbt</code>, <code>databricks-cli</code>, and <code>snowflake-connector-python</code> need Python but shouldn't live in any project's venv. Put them in a shared <code>~/.envs/data-tools/</code> venv, activate it when needed, and alias it. This keeps project venvs lean and CLI tools stable.
+</div>
+
+<h3>Standard Project Structure</h3>
+<pre><code>dev/[category]/[project-name]/
+├── .envrc              <span class="comment"># direnv: auto-activate venv + set env vars</span>
+├── .env                <span class="comment"># GITIGNORED — real secrets</span>
+├── .env.example        <span class="comment"># COMMITTED — template with placeholder values</span>
+├── .python-version     <span class="comment"># pyenv: e.g., "3.12.3"</span>
+├── .nvmrc              <span class="comment"># nvm: e.g., "20.11.1"</span>
+├── .gitignore
+├── README.md
+├── CLAUDE.md           <span class="comment"># Claude Code context — architecture, commands, stack</span>
+├── pyproject.toml      <span class="comment"># or requirements.txt + requirements-dev.txt</span>
+├── Makefile            <span class="comment"># common commands: make dev, make test, make deploy</span>
+├── .venv/              <span class="comment"># GITIGNORED — project's virtual environment</span>
+├── src/
+│   └── [package]/
+│       ├── __init__.py
+│       ├── config.py   <span class="comment"># reads from env vars, never hardcodes</span>
+│       ├── models/
+│       ├── services/
+│       └── api/
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+├── scripts/            <span class="comment"># operational scripts (not src)</span>
+├── docs/
+└── infra/              <span class="comment"># IaC — Terraform or Pulumi</span>
+    ├── gcp/
+    ├── aws/
+    └── azure/
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════ HOMEBREW ══════════════════════════════════════ -->
+<section id="homebrew">
+<h2>3 · Homebrew — System Binaries Only</h2>
+
+<div class="callout warn">
+  <div class="callout-title">⚠️ Golden Rule</div>
+  Homebrew manages <strong>system-level CLI tools and compilers</strong>. It does NOT manage Python versions you use for projects. It does NOT manage Node.js versions you use for projects. Those are handled by pyenv and nvm respectively.
+</div>
+
+<h3>Core Homebrew Installs</h3>
+<pre><code><span class="comment"># ── Version managers (these ARE installed via brew) ──────────────────</span>
+brew install pyenv
+brew install nvm
+brew install rbenv          <span class="comment"># Only if you need Ruby</span>
+
+<span class="comment"># ── Cloud CLIs (install via official installers instead — see sections below) ──</span>
+<span class="comment"># gcloud, aws, az: DO NOT install via brew — use official installers</span>
+
+<span class="comment"># ── Essential dev tools ───────────────────────────────────────────────</span>
+brew install git
+brew install gh             <span class="comment"># GitHub CLI</span>
+brew install direnv         <span class="comment"># Directory-scoped .env loading</span>
+brew install jq             <span class="comment"># JSON processor — used constantly with CLIs</span>
+brew install yq             <span class="comment"># YAML processor</span>
+brew install tree           <span class="comment"># Directory tree visualizer</span>
+brew install httpie         <span class="comment"># Better curl for API testing</span>
+brew install fzf            <span class="comment"># Fuzzy finder — transforms shell history search</span>
+brew install zoxide         <span class="comment"># Smart cd (z command)</span>
+brew install bat            <span class="comment"># Better cat with syntax highlighting</span>
+brew install ripgrep        <span class="comment"># Fast grep — Claude Code uses this internally</span>
+brew install fd             <span class="comment"># Fast find</span>
+brew install tmux           <span class="comment"># Terminal multiplexer — long-running jobs</span>
+brew install wget
+brew install gnupg          <span class="comment"># GPG for commit signing</span>
+
+<span class="comment"># ── Runtimes via brew (system tools only) ────────────────────────────</span>
+brew install node           <span class="comment"># ONLY for system-level tools (not project Node)</span>
+brew install go             <span class="comment"># If you write Go tooling</span>
+
+<span class="comment"># ── Build deps (needed by some Python packages) ──────────────────────</span>
+brew install openssl readline sqlite3 xz zlib tcl-tk
+
+<span class="comment"># ── Database clients (local dev) ─────────────────────────────────────</span>
+brew install postgresql@16  <span class="comment"># psql client</span>
+brew install libpq          <span class="comment"># PostgreSQL driver (for psycopg2)</span>
+
+<span class="comment"># ── Apps (casks) ─────────────────────────────────────────────────────</span>
+brew install --cask iterm2
+brew install --cask docker
+brew install --cask visual-studio-code  <span class="comment"># Or cursor</span>
+brew install --cask tableplus           <span class="comment"># Database GUI</span>
+</code></pre>
+
+<h3>Homebrew Maintenance</h3>
+<pre><code><span class="comment"># Run weekly (add to crontab or calendar reminder)</span>
+brew update && brew upgrade && brew cleanup && brew doctor
+
+<span class="comment"># Check for outdated packages without installing</span>
+brew outdated
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════ PYTHON ══════════════════════════════════════ -->
+<section id="python">
+<h2>4 · Python — pyenv + venv</h2>
+
+<h3>Install &amp; Configure pyenv</h3>
+<pre><code><span class="comment"># Install pyenv (via brew — this is correct)</span>
+brew install pyenv
+
+<span class="comment"># Add to ~/.zshrc (see template file for full config):</span>
+<span class="kw">export</span> <span class="var">PYENV_ROOT</span>=<span class="str">"$HOME/.pyenv"</span>
+<span class="kw">export</span> <span class="var">PATH</span>=<span class="str">"$PYENV_ROOT/bin:$PATH"</span>
+<span class="cmd">eval "$(pyenv init -)"</span>
+<span class="cmd">eval "$(pyenv virtualenv-init -)"</span>  <span class="comment"># Only if using pyenv-virtualenv plugin</span>
+</code></pre>
+
+<h3>Install Python Versions</h3>
+<pre><code><span class="comment"># Install build dependencies first (critical on macOS)</span>
+brew install openssl readline sqlite3 xz zlib tcl-tk
+
+<span class="comment"># Install Python 3.12 (latest stable — use for new projects)</span>
+pyenv install 3.12.3
+
+<span class="comment"># Install Python 3.11 (LTS — use for production workloads with proven libs)</span>
+pyenv install 3.11.9
+
+<span class="comment"># Set global Python (used when no project-level .python-version exists)</span>
+pyenv global 3.12.3
+
+<span class="comment"># Verify</span>
+python --version      <span class="comment"># Should show 3.12.3</span>
+which python          <span class="comment"># Should show ~/.pyenv/shims/python</span>
+which pip             <span class="comment"># Should show ~/.pyenv/shims/pip</span>
+</code></pre>
+
+<div class="callout danger">
+  <div class="callout-title">🚫 Never Do This</div>
+  <code>pip install pandas</code> without an active virtual environment. If you run <code>which pip</code> and it shows <code>/usr/local/bin/pip</code> or <code>/opt/homebrew/bin/pip</code> — stop. You are about to pollute your global Python. Activate a venv first.
+</div>
+
+<h3>Python Package Management — Two Approaches</h3>
+
+<h4>Option A: uv (Recommended for New Projects)</h4>
+<p><code>uv</code> is a next-generation Python package manager (by Astral, the makers of ruff). It's 10–100x faster than pip, handles lockfiles, and is designed for professional workflows.</p>
+<pre><code><span class="comment"># Install uv</span>
+pip install uv  <span class="comment"># Or: curl -LsSf https://astral.sh/uv/install.sh | sh</span>
+
+<span class="comment"># New project with uv</span>
+mkdir ~/dev/internal/my-agent && cd ~/dev/internal/my-agent
+uv init                             <span class="comment"># Creates pyproject.toml, .python-version, .venv</span>
+uv add anthropic google-cloud-bigquery snowflake-connector-python
+uv add --dev pytest ruff mypy
+
+<span class="comment"># Run commands inside project venv without activating</span>
+uv run python main.py
+uv run pytest
+
+<span class="comment"># Lock dependencies for reproducibility</span>
+uv lock                             <span class="comment"># Creates uv.lock — commit this to git</span>
+uv sync                             <span class="comment"># Installs from lockfile on another machine</span>
+</code></pre>
+
+<h4>Option B: pip + venv (Classic, More Universal)</h4>
+<pre><code><span class="comment"># Every new project — do this once</span>
+cd ~/dev/internal/my-agent
+pyenv local 3.12.3                  <span class="comment"># Creates .python-version file</span>
+python -m venv .venv                <span class="comment"># Creates .venv/ inside project</span>
+source .venv/bin/activate           <span class="comment"># Activate (or let direnv do this)</span>
+
+<span class="comment"># Install packages — ONLY when venv is active (you'll see (.venv) in prompt)</span>
+pip install anthropic google-cloud-bigquery snowflake-connector-python
+pip install --upgrade pip
+
+<span class="comment"># Freeze for reproducibility</span>
+pip freeze > requirements.lock      <span class="comment"># Exact versions — use for deployment</span>
+</code></pre>
+
+<h3>Shared Venvs for CLI Tools (in ~/.envs/)</h3>
+<pre><code><span class="comment"># Create shared data tools environment</span>
+python -m venv ~/.envs/data-tools
+source ~/.envs/data-tools/bin/activate
+pip install dbt-core dbt-bigquery databricks-cli snowflake-connector-python
+deactivate
+
+<span class="comment"># Add shell aliases (in .zshrc)</span>
+<span class="kw">alias</span> <span class="var">data-tools</span>=<span class="str">"source ~/.envs/data-tools/bin/activate"</span>
+<span class="kw">alias</span> <span class="var">gcp-tools</span>=<span class="str">"source ~/.envs/gcp-tools/bin/activate"</span>
+</code></pre>
+
+<h3>Version Pin Strategy</h3>
+<table>
+  <tr><th>Python Version</th><th>Use For</th><th>Stability</th></tr>
+  <tr><td>3.12.x</td><td>New projects, experimentation, AI/ML work</td><td>Current stable</td></tr>
+  <tr><td>3.11.x</td><td>Production services, existing projects</td><td>LTS — best library support</td></tr>
+  <tr><td>3.10.x</td><td>Legacy compatibility only</td><td>EOL October 2026</td></tr>
+  <tr><td>3.9.x and below</td><td>Do not use for new work</td><td>EOL or approaching</td></tr>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════ NODE ══════════════════════════════════════ -->
+<section id="node">
+<h2>5 · Node.js — nvm</h2>
+
+<pre><code><span class="comment"># Install nvm (via brew is fine)</span>
+brew install nvm
+
+<span class="comment"># Add to ~/.zshrc:</span>
+<span class="kw">export</span> <span class="var">NVM_DIR</span>=<span class="str">"$HOME/.nvm"</span>
+[ -s <span class="str">"$NVM_DIR/nvm.sh"</span> ] && \. <span class="str">"$NVM_DIR/nvm.sh"</span>
+[ -s <span class="str">"$NVM_DIR/bash_completion"</span> ] && \. <span class="str">"$NVM_DIR/bash_completion"</span>
+
+<span class="comment"># Install Node LTS (use for all new projects)</span>
+nvm install --lts
+nvm use --lts
+nvm alias default 'lts/*'
+
+<span class="comment"># Per-project pin (.nvmrc file)</span>
+echo "20" > .nvmrc          <span class="comment"># Node 20 LTS</span>
+nvm use                     <span class="comment"># Reads .nvmrc automatically</span>
+
+<span class="comment"># Auto-use .nvmrc when entering directory (add to .zshrc)</span>
+autoload -U add-zsh-hook
+load-nvmrc() {
+  local nvmrc_path="$(nvm_find_nvmrc)"
+  if [ -n "$nvmrc_path" ]; then
+    local nvmrc_node_version=$(nvm version "$(cat "${nvmrc_path}")")
+    if [ "$nvmrc_node_version" = "N/A" ]; then
+      nvm install
+    elif [ "$nvmrc_node_version" != "$(nvm version)" ]; then
+      nvm use
+    fi
+  fi
+}
+add-zsh-hook chpwd load-nvmrc
+load-nvmrc
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════ GCP ══════════════════════════════════════ -->
+<section id="gcp">
+<h2>6 · GCP — gcloud CLI</h2>
+
+<div class="callout info">
+  <div class="callout-title">📌 Install via Official Installer — Not Homebrew</div>
+  The official installer bundles its own Python, manages its own updates, and doesn't conflict with your system Python. Always use it.
+</div>
+
+<pre><code><span class="comment"># Download and install</span>
+curl https://sdk.cloud.google.com | bash
+<span class="comment"># Restart shell after install</span>
+exec -l $SHELL
+
+<span class="comment"># Initialize and auth</span>
+gcloud init
+gcloud auth login
+gcloud auth application-default login  <span class="comment"># ADC — use this for all SDK auth</span>
+
+<span class="comment"># Set your sandbox project as default</span>
+gcloud config set project YOUR_GCP_PROJECT_ID
+gcloud config set compute/region us-central1
+gcloud config set compute/zone us-central1-a
+
+<span class="comment"># Create named config for sandbox vs production</span>
+gcloud config configurations create sandbox
+gcloud config set project YOUR_SANDBOX_PROJECT_ID
+gcloud config configurations create production
+gcloud config set project YOUR_PROD_PROJECT_ID
+
+<span class="comment"># Switch between configs</span>
+gcloud config configurations activate sandbox
+gcloud config configurations activate production
+
+<span class="comment"># Enable APIs you'll need (run in sandbox project)</span>
+gcloud services enable \
+  aiplatform.googleapis.com \
+  bigquery.googleapis.com \
+  run.googleapis.com \
+  cloudbuild.googleapis.com \
+  secretmanager.googleapis.com \
+  storage.googleapis.com \
+  compute.googleapis.com \
+  container.googleapis.com \
+  artifactregistry.googleapis.com
+
+<span class="comment"># Verify ADC is working</span>
+gcloud auth application-default print-access-token
+</code></pre>
+
+<h3>GCP Authentication in Code</h3>
+<pre><code><span class="comment"># In Python code — NEVER hardcode credentials</span>
+<span class="comment"># ADC handles auth automatically when you've run gcloud auth application-default login</span>
+
+<span class="kw">from</span> google.cloud <span class="kw">import</span> bigquery
+<span class="kw">from</span> google.cloud <span class="kw">import</span> storage
+
+<span class="comment"># ADC is used automatically — no credentials argument needed in local dev</span>
+client = bigquery.Client(project=<span class="str">"your-project-id"</span>)
+
+<span class="comment"># In .env for local dev</span>
+<span class="var">GOOGLE_CLOUD_PROJECT</span>=your-sandbox-project-id
+<span class="comment"># NEVER put GOOGLE_APPLICATION_CREDENTIALS in code or .env for dev</span>
+<span class="comment"># Use ADC (application-default login) instead</span>
+</code></pre>
+
+<h3>Service Account Pattern for CI/CD &amp; Production</h3>
+<pre><code><span class="comment"># Create service account for each workload</span>
+gcloud iam service-accounts create my-service \
+  --display-name="My Service Account"
+
+<span class="comment"># Grant minimal permissions (principle of least privilege)</span>
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:my-service@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/bigquery.dataViewer"
+
+<span class="comment"># For Cloud Run — no key files needed, use Workload Identity</span>
+<span class="comment"># For local testing of production SA — use impersonation</span>
+gcloud auth application-default login \
+  --impersonate-service-account=my-service@PROJECT_ID.iam.gserviceaccount.com
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════ AWS ══════════════════════════════════════ -->
+<section id="aws">
+<h2>7 · AWS CLI</h2>
+
+<pre><code><span class="comment"># Install AWS CLI v2 — official installer (not pip, not brew)</span>
+curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
+sudo installer -pkg AWSCLIV2.pkg -target /
+aws --version
+
+<span class="comment"># Configure profiles (never use root credentials)</span>
+aws configure --profile sandbox
+<span class="comment"># Prompts for: Access Key ID, Secret Access Key, Region, Output format</span>
+
+<span class="comment"># Use named profiles — never rely on default profile for multi-account work</span>
+<span class="kw">export</span> <span class="var">AWS_PROFILE</span>=sandbox
+aws s3 ls
+
+<span class="comment"># For cross-account or SSO setups</span>
+aws configure sso --profile my-sso-profile
+
+<span class="comment"># In .env files</span>
+<span class="var">AWS_PROFILE</span>=sandbox
+<span class="var">AWS_REGION</span>=us-east-1
+<span class="comment"># Never put AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in .env files that touch git</span>
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════ AZURE ══════════════════════════════════════ -->
+<section id="azure">
+<h2>8 · Azure CLI</h2>
+
+<pre><code><span class="comment"># Install via official script (not brew — keeps it independent)</span>
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+<span class="comment"># Or on macOS:</span>
+brew install azure-cli  <span class="comment"># Acceptable here — Microsoft maintains the formula</span>
+
+az --version
+az login
+az account set --subscription "Your Subscription Name"
+
+<span class="comment"># Fabric/Synapse connections are handled via fabric-specific SDK</span>
+<span class="comment"># Microsoft Fabric CLI (preview)</span>
+pip install microsoft-fabric  <span class="comment"># In your data-tools venv</span>
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════ DATA PLATFORMS ══════════════════════════════════════ -->
+<section id="data-platforms">
+<h2>9 · Data Platform Connectors</h2>
+
+<p>These are installed in project venvs (or the shared <code>~/.envs/data-tools/</code> venv). Never install globally.</p>
+
+<h3>Snowflake</h3>
+<pre><code><span class="comment"># In your project venv or data-tools shared venv</span>
+pip install "snowflake-connector-python[pandas]"
+pip install snowflake-sqlalchemy          <span class="comment"># If using SQLAlchemy ORM</span>
+
+<span class="comment"># Auth via .env (never hardcode)</span>
+<span class="var">SNOWFLAKE_ACCOUNT</span>=your-account.snowflakecomputing.com
+<span class="var">SNOWFLAKE_USER</span>=your_user
+<span class="var">SNOWFLAKE_PRIVATE_KEY_PATH</span>=~/.ssh/snowflake_rsa_key.p8  <span class="comment"># Key-pair auth (preferred)</span>
+<span class="var">SNOWFLAKE_DATABASE</span>=your_db
+<span class="var">SNOWFLAKE_SCHEMA</span>=your_schema
+<span class="var">SNOWFLAKE_WAREHOUSE</span>=your_wh
+<span class="var">SNOWFLAKE_ROLE</span>=your_role
+
+<span class="comment"># Connection pattern in code</span>
+<span class="kw">import</span> os
+<span class="kw">import</span> snowflake.connector
+
+conn = snowflake.connector.connect(
+    account=os.environ[<span class="str">"SNOWFLAKE_ACCOUNT"</span>],
+    user=os.environ[<span class="str">"SNOWFLAKE_USER"</span>],
+    private_key_file=os.environ[<span class="str">"SNOWFLAKE_PRIVATE_KEY_PATH"</span>],
+)
+</code></pre>
+
+<h3>Databricks</h3>
+<pre><code>pip install databricks-sdk             <span class="comment"># New unified SDK (recommended)</span>
+pip install databricks-connect         <span class="comment"># Spark connect for remote cluster</span>
+
+<span class="comment"># Databricks CLI (use in data-tools venv or install standalone)</span>
+curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+
+<span class="comment"># Auth</span>
+databricks configure --host https://your-workspace.azuredatabricks.net
+<span class="comment"># Or via .env:</span>
+<span class="var">DATABRICKS_HOST</span>=https://your-workspace.azuredatabricks.net
+<span class="var">DATABRICKS_TOKEN</span>=dapi...   <span class="comment"># Personal Access Token — in .env only, never commit</span>
+</code></pre>
+
+<h3>BigQuery (GCP)</h3>
+<pre><code>pip install "google-cloud-bigquery[pandas]"
+pip install google-cloud-bigquery-storage  <span class="comment"># For fast large reads</span>
+
+<span class="comment"># Auth via ADC (gcloud auth application-default login) — no extra config</span>
+<span class="kw">from</span> google.cloud <span class="kw">import</span> bigquery
+client = bigquery.Client()  <span class="comment"># ADC auto-detected</span>
+</code></pre>
+
+<h3>Oracle</h3>
+<pre><code><span class="comment"># Requires Oracle Instant Client (system-level, install via homebrew)</span>
+brew tap InstantClientTap/instantclient
+brew install instantclient-basic
+
+<span class="comment"># Then in venv</span>
+pip install oracledb              <span class="comment"># Modern thin-mode driver (no Instant Client needed)</span>
+<span class="comment"># OR</span>
+pip install cx_Oracle             <span class="comment"># Legacy driver (requires Instant Client)</span>
+</code></pre>
+
+<h3>Palantir Foundry</h3>
+<pre><code><span class="comment"># Foundry Python SDK (requires access to Foundry instance)</span>
+pip install palantir-oauth-client
+pip install foundry-platform-python  <span class="comment"># Or the specific SDK your client uses</span>
+
+<span class="comment"># Auth via .env</span>
+<span class="var">FOUNDRY_URL</span>=https://your-client.palantirfoundry.com
+<span class="var">FOUNDRY_TOKEN</span>=your-token   <span class="comment"># In .env only</span>
+</code></pre>
+
+<h3>dbt (for data transformation across all platforms)</h3>
+<pre><code><span class="comment"># Install in data-tools shared venv — pick your target adapters</span>
+pip install dbt-core
+pip install dbt-bigquery    <span class="comment"># GCP</span>
+pip install dbt-snowflake   <span class="comment"># Snowflake</span>
+pip install dbt-databricks  <span class="comment"># Databricks</span>
+
+<span class="comment"># profiles.yml lives at ~/.dbt/profiles.yml — never in the project repo</span>
+<span class="comment"># Each profile section references env vars for credentials</span>
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════ DOCKER ══════════════════════════════════════ -->
+<section id="docker">
+<h2>10 · Docker</h2>
+
+<pre><code><span class="comment"># Install Docker Desktop via brew cask</span>
+brew install --cask docker
+
+<span class="comment"># Verify</span>
+docker --version
+docker compose version
+
+<span class="comment"># Login to GCP Artifact Registry (replace with your region)</span>
+gcloud auth configure-docker us-central1-docker.pkg.dev
+
+<span class="comment"># Standard Dockerfile for Python AI services</span>
+cat &gt; Dockerfile &lt;&lt;'EOF'
+FROM python:3.12-slim
+
+WORKDIR /app
+
+<span class="comment"># Install uv for fast dependency installation</span>
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+<span class="comment"># Copy dependency files first (Docker layer caching)</span>
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+<span class="comment"># Copy application code</span>
+COPY src/ ./src/
+
+<span class="comment"># Never run as root</span>
+RUN useradd -m -u 1000 app
+USER app
+
+CMD ["uv", "run", "python", "-m", "src.main"]
+EOF
+</code></pre>
+
+<h3>Docker Compose for Local Dev</h3>
+<pre><code><span class="comment"># docker-compose.yml — local development services</span>
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+volumes:
+  pgdata:
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════ GIT ══════════════════════════════════════ -->
+<section id="git">
+<h2>11 · Git Configuration</h2>
+
+<pre><code><span class="comment"># Global identity</span>
+git config --global user.name "Pankaj Shroff"
+git config --global user.email "pankaj.shroff@mcsquared.ai"
+git config --global core.editor "code --wait"  <span class="comment"># VS Code as editor</span>
+
+<span class="comment"># Default branch name</span>
+git config --global init.defaultBranch main
+
+<span class="comment"># Better diffs</span>
+git config --global core.pager "bat --style=plain"
+git config --global diff.colorMoved zebra
+
+<span class="comment"># Useful aliases</span>
+git config --global alias.lg "log --oneline --graph --decorate --all"
+git config --global alias.st "status -sb"
+git config --global alias.co checkout
+git config --global alias.br branch
+git config --global alias.unstage "reset HEAD --"
+
+<span class="comment"># Pull strategy (rebase avoids merge commits on pull)</span>
+git config --global pull.rebase true
+
+<span class="comment"># Push default</span>
+git config --global push.default current
+
+<span class="comment"># GPG commit signing (optional but recommended for enterprise work)</span>
+git config --global commit.gpgsign true
+git config --global user.signingkey YOUR_GPG_KEY_ID
+</code></pre>
+
+<h3>SSH Key Strategy (one key per service)</h3>
+<pre><code><span class="comment"># Generate separate keys for each service</span>
+ssh-keygen -t ed25519 -C "pankaj@mcsquared.ai-github" -f ~/.ssh/id_ed25519_github
+ssh-keygen -t ed25519 -C "pankaj@mcsquared.ai-gcp" -f ~/.ssh/id_ed25519_gcp
+
+<span class="comment"># ~/.ssh/config</span>
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519_github
+  AddKeysToAgent yes
+  UseKeychain yes  <span class="comment"># macOS keychain</span>
+
+Host *.compute.googleapis.com
+  User pankaj_shroff
+  IdentityFile ~/.ssh/id_ed25519_gcp
+  StrictHostKeyChecking no
+</code></pre>
+
+<h3>Global .gitignore</h3>
+<pre><code><span class="comment"># ~/.gitignore_global</span>
+git config --global core.excludesfile ~/.gitignore_global
+
+<span class="comment"># Contents of ~/.gitignore_global:</span>
+.DS_Store
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+node_modules/
+.idea/
+.vscode/
+*.swp
+*~
+.terraform/
+*.tfstate
+*.tfstate.backup
+.claude/
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════ SECRETS ══════════════════════════════════════ -->
+<section id="secrets">
+<h2>12 · Secrets &amp; Environment Variables</h2>
+
+<h3>direnv — Auto-loading .env on cd</h3>
+<pre><code><span class="comment"># Install</span>
+brew install direnv
+
+<span class="comment"># Add to ~/.zshrc (AFTER pyenv/nvm setup):</span>
+<span class="cmd">eval "$(direnv hook zsh)"</span>
+
+<span class="comment"># In each project, create .envrc:</span>
+cat > .envrc &lt;&lt;'EOF'
+<span class="comment"># Activate project venv</span>
+source .venv/bin/activate
+
+<span class="comment"># Load .env file</span>
+dotenv .env
+
+<span class="comment"># Set GCP project for this project</span>
+<span class="kw">export</span> <span class="var">GOOGLE_CLOUD_PROJECT</span>=your-sandbox-project-id
+
+<span class="comment"># Set active gcloud config</span>
+<span class="kw">export</span> <span class="var">CLOUDSDK_ACTIVE_CONFIG_NAME</span>=sandbox
+EOF
+
+<span class="comment"># Allow direnv to load (must approve each new .envrc)</span>
+direnv allow .
+</code></pre>
+
+<h3>.env File Pattern</h3>
+<pre><code><span class="comment"># .env.example — COMMIT THIS (template, no real values)</span>
+<span class="var">GOOGLE_CLOUD_PROJECT</span>=your-gcp-project-id
+<span class="var">ANTHROPIC_API_KEY</span>=sk-ant-...
+<span class="var">SNOWFLAKE_ACCOUNT</span>=your-account.snowflakecomputing.com
+<span class="var">SNOWFLAKE_USER</span>=your_user
+<span class="var">SNOWFLAKE_DATABASE</span>=your_db
+<span class="var">OPENAI_API_KEY</span>=sk-...
+
+<span class="comment"># .env — GITIGNORED (real values)</span>
+<span class="var">GOOGLE_CLOUD_PROJECT</span>=mcsquared-sandbox-abc123
+<span class="var">ANTHROPIC_API_KEY</span>=sk-ant-api03-actual-key-here
+<span class="comment"># ... real values</span>
+</code></pre>
+
+<h3>For Production: GCP Secret Manager</h3>
+<pre><code><span class="comment"># Store secrets in GCP Secret Manager (not .env files in prod)</span>
+gcloud secrets create anthropic-api-key --replication-policy="automatic"
+echo -n "sk-ant-..." | gcloud secrets versions add anthropic-api-key --data-file=-
+
+<span class="comment"># Access in Python</span>
+<span class="kw">from</span> google.cloud <span class="kw">import</span> secretmanager
+
+<span class="kw">def</span> <span class="cmd">get_secret</span>(secret_id: str) -> str:
+    client = secretmanager.SecretManagerServiceClient()
+    name = f<span class="str">"projects/PROJECT_ID/secrets/{secret_id}/versions/latest"</span>
+    response = client.access_secret_version(request={<span class="str">"name"</span>: name})
+    <span class="kw">return</span> response.payload.data.decode(<span class="str">"UTF-8"</span>)
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════ CLAUDE CODE ══════════════════════════════════════ -->
+<section id="claude-code">
+<h2>13 · Claude Code Configuration</h2>
+
+<h3>CLAUDE.md — The Most Important File</h3>
+<p>Every project must have a <code>CLAUDE.md</code> at the root. This is Claude Code's context file — it reads this before starting any task. A good <code>CLAUDE.md</code> eliminates 80% of clarifying questions and misunderstandings.</p>
+
+<pre><code><span class="comment"># CLAUDE.md template for your AI systems of action projects</span>
+# See: CLAUDE-md-template.md in your deliverable files
+</code></pre>
+
+<h3>Claude Code Global Config (~/.claude/)</h3>
+<pre><code><span class="comment"># ~/.claude/CLAUDE.md — applies to ALL projects (global context)</span>
+<span class="comment"># Good candidates for global config:</span>
+<span class="comment"># - Your name and company</span>
+<span class="comment"># - Preferred coding style</span>
+<span class="comment"># - Preferred Python version, package manager</span>
+<span class="comment"># - Common conventions across your projects</span>
+
+<span class="comment"># Example ~/.claude/CLAUDE.md</span>
+cat ~/.claude/CLAUDE.md
+</code></pre>
+
+<pre><code><span class="comment"># ~/.claude/CLAUDE.md</span>
+## About Me
+- Name: Pankaj Shroff, Founder & CEO, mcsquared.ai
+- Primary language: Python 3.12 (use uv for package management)
+- Node.js: v20 LTS (use nvm)
+- Shell: zsh on macOS
+
+## Coding Standards
+- Python: ruff for linting/formatting, mypy for type checking
+- Type hints: always add to function signatures
+- Docstrings: Google style
+- Tests: pytest with clear Arrange/Act/Assert structure
+- Error handling: explicit, typed exceptions — never bare except
+
+## Architecture Principles
+- 12-factor app patterns (config from env vars, stateless processes)
+- Async-first for I/O-bound work (asyncio, httpx, not requests)
+- Explicit dependency injection — no hidden globals
+- Cloud-agnostic abstractions for compute and storage
+
+## Preferred Packages
+- HTTP clients: httpx (async), requests (sync)
+- AI/LLM: anthropic SDK, openai SDK, langchain only when needed
+- Data: pandas, polars for large datasets
+- Cloud: google-cloud-*, boto3, azure-sdk — all via project venvs
+- Database: sqlalchemy 2.x with async support
+
+## GCP Sandbox
+- Project: [YOUR_PROJECT_ID]
+- Region: us-central1
+- Use ADC for auth (gcloud auth application-default login)
+- Test all GCP features in sandbox before any client deployment
+</code></pre>
+
+<h3>Claude Code Best Practices</h3>
+<div class="callout success">
+  <div class="callout-title">✅ Claude Code workflow patterns that compound productivity</div>
+  <ul style="margin-left:18px; margin-top:8px;">
+    <li>Always start a session from the project root (where <code>CLAUDE.md</code> lives)</li>
+    <li>Use <code>/init</code> in a new project to let Claude generate the initial CLAUDE.md</li>
+    <li>Keep CLAUDE.md updated as architecture evolves — treat it as living documentation</li>
+    <li>Use <code>--continue</code> flag to resume a previous session context</li>
+    <li>Put common commands in Makefile so Claude can discover and run them</li>
+    <li>Commit often — Claude works better when git history is clean and meaningful</li>
+  </ul>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════ PRE-FLIGHT ══════════════════════════════════════ -->
+<section id="preflight">
+<h2>14 · Pre-Flight Checklist</h2>
+<p>Run these checks after setup. Everything should show ✓ before you start a real project.</p>
+
+<pre><code><span class="comment"># Save as ~/dev/preflight-check.sh and run it</span>
+<span class="cmd">#!/usr/bin/env bash</span>
+set -e
+PASS=<span class="str">"✅"</span>; FAIL=<span class="str">"❌"</span>
+
+check() {
+  local name=$1; local cmd=$2; local expected=$3
+  result=$(eval "$cmd" 2>/dev/null | head -1)
+  if [[ -n "$result" ]]; then echo "$PASS $name: $result"
+  else echo "$FAIL $name: NOT FOUND"; fi
+}
+
+echo "=== Shell & Path ==="
+echo "SHELL: $SHELL"
+echo "PATH order:"; echo $PATH | tr ':' '\n' | nl
+
+echo ""
+echo "=== Version Managers ==="
+check "pyenv" "pyenv --version" ""
+check "nvm" "nvm --version" ""
+check "Python (pyenv)" "pyenv version" ""
+
+echo ""
+echo "=== Runtimes ==="
+check "Python" "python --version" ""
+check "pip" "pip --version" ""
+check "Node" "node --version" ""
+check "npm" "npm --version" ""
+
+echo ""
+echo "=== Cloud CLIs ==="
+check "gcloud" "gcloud --version" ""
+check "aws" "aws --version" ""
+check "az" "az --version" ""
+
+echo ""
+echo "=== Dev Tools ==="
+check "git" "git --version" ""
+check "gh" "gh --version" ""
+check "docker" "docker --version" ""
+check "direnv" "direnv --version" ""
+check "jq" "jq --version" ""
+check "fzf" "fzf --version" ""
+check "claude" "claude --version" ""
+
+echo ""
+echo "=== GCP Auth ==="
+check "GCP active account" "gcloud auth list 2>&1 | grep ACTIVE" ""
+check "GCP ADC" "gcloud auth application-default print-access-token 2>/dev/null" ""
+
+echo ""
+echo "=== Python Hygiene ==="
+<span class="kw">if</span> [[ $(which pip) == *".pyenv"* ]]; then
+  echo "$PASS pip points to pyenv shim"
+<span class="kw">else</span>
+  echo "$FAIL pip does NOT point to pyenv — check PATH"
+fi
+
+<span class="kw">if</span> [[ $(which python) == *".pyenv"* ]]; then
+  echo "$PASS python points to pyenv shim"
+<span class="kw">else</span>
+  echo "$FAIL python does NOT point to pyenv — check PATH"
+fi
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════ FILES ══════════════════════════════════════ -->
+<section id="files">
+<h2>15 · Delivered Files</h2>
+
+<div class="card">
+  <h3 style="margin-top:0;">Files in this deliverable</h3>
+  <table style="margin-top:12px;">
+    <tr><th>File</th><th>What It Does</th></tr>
+    <tr><td><code>dev-environment-guide.html</code></td><td>This guide (reference document)</td></tr>
+    <tr><td><code>mac-env-setup.sh</code></td><td>Idempotent setup script — run on Mac to install everything</td></tr>
+    <tr><td><code>zshrc-template.zsh</code></td><td>Clean, opinionated .zshrc — review and merge into yours</td></tr>
+    <tr><td><code>new-project.sh</code></td><td>Run to scaffold a new project with the correct structure</td></tr>
+    <tr><td><code>CLAUDE-md-template.md</code></td><td>Drop into any project root as CLAUDE.md and customize</td></tr>
+  </table>
+</div>
+
+<div class="callout warn">
+  <div class="callout-title">⚠️ How to Apply the Setup Script</div>
+  The <code>mac-env-setup.sh</code> script is idempotent (safe to re-run). Before running, read it through — then execute on your Mac terminal:
+  <pre style="margin-top:10px; margin-bottom:0;"><code>chmod +x mac-env-setup.sh && ./mac-env-setup.sh</code></pre>
+  It will skip steps already complete and install what's missing. Restart your terminal after it finishes.
+</div>
+</section>
+
+<div style="margin-top:60px; padding-top:24px; border-top:1px solid var(--border); color:var(--muted); font-size:.85rem;">
+  Generated by Claude for mcsquared.ai · March 2026 · Confidential
+</div>
+
+</div><!-- end main -->
+
+<script>
+  // Sidebar active link tracking
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.sidebar nav a');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        navLinks.forEach(l => l.classList.remove('active'));
+        const link = document.querySelector(`.sidebar nav a[href="#${e.target.id}"]`);
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { threshold: 0.3 });
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
