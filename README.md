@@ -9,12 +9,12 @@ micro-VMs running Claude Code agents in parallel on shared GCP infrastructure.
 
 **macOS / Linux:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/codingmachines/setup.sh | bash
 ```
 
 **Windows (PowerShell as Admin):**
 ```powershell
-irm https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/setup.ps1 | iex
+irm https://raw.githubusercontent.com/mcsquared-ai/codingswarm-setup/main/codingmachines/setup.ps1 | iex
 ```
 
 This installs dev tools, builds the CLI, and configures your connection to
@@ -148,7 +148,7 @@ Each micro-VM gets:
 
 ## SSH Access
 
-VMs join the Tailscale tailnet at boot. SSH directly from any device on your tailnet — no IAP tunnels or jump hosts needed. See **[SSH_ACCESS.md](SSH_ACCESS.md)** for full setup.
+VMs join the Tailscale tailnet at boot. SSH directly from any device on your tailnet — no IAP tunnels or jump hosts needed. See **[SSH_ACCESS.md](codingmachines/SSH_ACCESS.md)** for full setup.
 
 ```bash
 codingmachines-ssh stockyard-<task-id>    # or: ssh mooby@stockyard-<task-id>
@@ -171,13 +171,13 @@ codingmachines-ssh stockyard-<task-id>    # or: ssh mooby@stockyard-<task-id>
 | `connection refused` on port 65433 | Host VM is stopped. Run `codingmachines-start` |
 | `dial unix .../stockyard.sock` error | `CODINGMACHINES_URL` not set. Open a new terminal or run `source ~/.codingmachines/env.sh` |
 | DNS not resolving | Run `dig codingmachines.mcsquared.cloud +short` — should show `34.121.124.99` |
-| SSH `Permission denied` | Download the VM key first. See [SSH_ACCESS.md](SSH_ACCESS.md) |
+| SSH `Permission denied` | Download the VM key first. See [SSH_ACCESS.md](codingmachines/SSH_ACCESS.md) |
 | Host VM won't start | GCP Spot capacity exhausted. Wait a few minutes and retry |
 
 ## More Docs
 
-- **[SSH_ACCESS.md](SSH_ACCESS.md)** — SSH setup, jumping into VMs, delivering prompts
-- **[ADMIN_GUIDE.md](ADMIN_GUIDE.md)** — Host provisioning, secrets, DNS, scaling to multiple hosts
+- **[SSH_ACCESS.md](codingmachines/SSH_ACCESS.md)** — SSH setup, jumping into VMs, delivering prompts
+- **[ADMIN_GUIDE.md](codingmachines/ADMIN_GUIDE.md)** — Host provisioning, secrets, DNS, scaling to multiple hosts
 
 ## Naming
 
