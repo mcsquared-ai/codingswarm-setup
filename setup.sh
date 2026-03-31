@@ -436,7 +436,15 @@ for i in "${!PROMPTS[@]}"; do
 cd /home/mooby
 PROMPT=$(cat /home/mooby/prompt.md)
 claude --dangerously-skip-permissions -p "$PROMPT" --output-format stream-json --verbose 2>&1 | tee /home/mooby/agent.log
-echo "AGENT_EXIT_CODE=$?" >> /home/mooby/agent.log
+EXIT_CODE=$?
+echo "AGENT_EXIT_CODE=$EXIT_CODE" >> /home/mooby/agent.log
+
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[SELF-CLEANUP] Task completed successfully. VM shutting down." | tee -a /home/mooby/agent.log
+    sudo shutdown -h now
+else
+    echo "[ERROR] Task failed (exit $EXIT_CODE). VM staying up for debugging." | tee -a /home/mooby/agent.log
+fi
 AGENTSCRIPT
 
     # Launch in tmux
